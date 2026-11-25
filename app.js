@@ -61,7 +61,7 @@ function updateCounts() {
 }
 
 function referenceURL(card) {
-  if (card.image === `https://images.pokemontcg.io/${card.setId}/${card.number}.png`) return '/api/reference-image?' + new URLSearchParams({ set: card.setId, number: card.number });
+  if (card.image?.startsWith('https://images.pokemontcg.io/')) return 'https://images.scrydex.com/pokemon/' + encodeURIComponent(card.id) + '/large';
   return card.image || '';
 }
 
@@ -78,7 +78,13 @@ function loadReferenceCanvas(card) {
       canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
       resolve(canvas);
     };
-    image.onerror = reject;
+    image.onerror = event => {
+      if (image.src !== card.image && card.image) {
+        image.onerror = reject;
+        image.src = card.image.startsWith('https://images.pokemontcg.io/') ?
+          '/api/reference-image?' + new URLSearchParams({ set: card.setId, number: card.number }) : card.image;
+      } else reject(event);
+    };
     image.src = referenceURL(card);
   }).catch(error => {
     referenceCanvasCache.delete(card.id);
@@ -276,7 +282,7 @@ function openCard(card) {
   const existing = collection.filter(item => item.cardId === card.id).reduce((n, item) => n + item.quantity, 0);
   const content = $('#dialog-content');
   const marketSearch = encodeURIComponent(`${card.name} ${card.number}`);
-  content.innerHTML = `<div class="dialog-heading"><img src="${html(card.image)}" alt="${html(card.name)}"><div><p class="eyebrow">${html(card.setName)}</p><h2>${html(card.name)}</h2><p class="dialog-number">Carta ${html(card.number)}/${html(card.total)}</p></div></div>
+  content.innerHTML = `<div class="dialog-heading"><img src="${html(cardPhoto(card))}" alt="${html(card.name)}"><div><p class="eyebrow">${html(card.setName)}</p><h2>${html(card.name)}</h2><p class="dialog-number">Carta ${html(card.number)}/${html(card.total)}</p></div></div>
     <div class="confirm-strip"><span>✓</span><p><b>Confirma con tu copia</b><small>Compara ilustración, número y símbolo de edición.</small>${card.symbol ? `<img width="32" alt="Símbolo de la edición" src="${html(card.symbol)}">` : '' }</p></div>
     <div class="market-links"><a href="https://www.tcgplayer.com/search/pokemon/product?q=${marketSearch}" rel="noopener noreferrer">TCGplayer ↗</a><a href="https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${marketSearch}" rel="noopener noreferrer">Cardmarket ↗</a><a href="https://tcgmatch.cl/" rel="noopener noreferrer">TCGMatch Chile ↗</a></div>
     <form id="card-form" class="card-form">
