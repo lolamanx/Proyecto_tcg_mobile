@@ -97,7 +97,7 @@ final class Market {
 
     private static WebResourceResponse withAmount(JSONObject value, String finish, boolean stale) {
         JSONObject prices = value.optJSONObject("prices");
-        JSONObject result = new JSONObject(value.toString());
+        JSONObject result = value;
         try {
             result.put("amount", prices == null ? JSONObject.NULL : prices.opt(finish));
             if (stale) result.put("stale", true);
