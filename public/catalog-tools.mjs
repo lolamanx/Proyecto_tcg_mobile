@@ -20,11 +20,13 @@ export function searchCards(catalog, query, edition = '', ocr = false) {
       return cardNumber === numberKey(numerator) && (expectedTotal === numberKey(total) ||
         (/^[a-z]/.test(expectedTotal) && expectedTotal.replace(/\d+$/, '') === cardNumber.replace(/\d+[a-z]?$/, '')));
     });
+    if (ocr && pairs.length && !matchingPair) continue;
     let score = matchingPair ? 50 : 0;
     if (!ocr && (pairs.length || single)) {
       if (!matchingPair && cardNumber !== numberKey(single || '')) continue;
       score = 50;
     }
+    if (ocr && !pairs.length && single && cardNumber !== numberKey(single)) continue;
     if (ocr) {
       const matchingTitles = [title, ...aliases.map(normalize)].map(value => value.replace(/[^\p{L}\d]+/gu, ' ').trim())
         .filter(value => value.length >= 3 && wordText.includes(' ' + value + ' '));

@@ -60,7 +60,8 @@ public final class CardfolioActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri url = request.getUrl();
-                if (local(url) && "/api/market".equals(url.getPath())) return Market.lookup(url);
+                if (local(url) && "/api/market".equals(url.getPath())) return Market.lookup(CardfolioActivity.this, url);
+                if (local(url) && "/api/card-image".equals(url.getPath())) return Market.image(url);
                 return assets.shouldInterceptRequest(url);
             }
 

@@ -3,5 +3,6 @@ node_modules/
 android/.gradle/
 android/build/
 android/local.properties
+data/market-cache.json
 *.keystore
 *.jks

@@ -1,6 +1,6 @@
 import { searchCards, suggestLanguage, normalize, printingKey } from './catalog-tools.mjs';
 
-import { compareFoil, openCamera, reflectionPixels } from './camera.mjs';
+import { compareFoil, openCamera, reflectionPixels, rankCardImages } from './camera.mjs';
 
 const androidOcr = window.CardfolioAndroid;
 const nativeShell = location.origin === 'https://appassets.androidplatform.net';
@@ -195,6 +195,9 @@ function finder(mode) {
   let photo;
   let scannedText = '';
   let scanSequence = 0;
+  let liveSignature = '';
+  let liveRepeats = 0;
+  let liveRanked = [];
 
   async function load() {
     if (catalog) return catalog;
@@ -225,7 +228,9 @@ function finder(mode) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'card-option';
-      button.innerHTML = `<span class="mini-icon" aria-hidden="true">▱</span><span><strong>${esc(name)}</strong><small>${esc(catalog.sets[set][0])} · #${esc(number)}</small></span>`;
+      const imageUrl = '/api/card-image?' + new URLSearchParams({ set, number });
+      button.innerHTML = `<img class="card-option-art" src="${esc(imageUrl)}" alt="Referencia de ${esc(name)}" loading="lazy"><span><strong>${esc(name)}</strong><small>${esc(catalog.sets[set][0])} · #${esc(number)}</small><small>Confirma que coincide con la imagen de referencia</small></span>`;
+      button.querySelector('img').onerror = event => { event.currentTarget.hidden = true; };
       button.onclick = () => select(card);
       results.append(button);
     }
@@ -251,13 +256,18 @@ function finder(mode) {
   let scanRequest;
   const guided = Boolean(navigator.mediaDevices?.getUserMedia && cameraDialog.showModal);
 
-  function capture(hint, onCapture) {
-    stopCamera = openCamera(cameraDialog, hint, onCapture);
+  function capture(hint, onCapture, onFrame) {
+    stopCamera = openCamera(cameraDialog, hint, onCapture, onFrame);
   }
 
   root.querySelector('.guided-camera').onclick = () => {
     if (!guided) return root.querySelector('.camera').click();
-    capture('Pon la carta de frente dentro del marco y evita reflejos sobre el número.', canvas => readPhoto(canvas, true));
+    liveSignature = '';
+    liveRepeats = 0;
+    liveRanked = [];
+    scanResult.hidden = false;
+    scanStatus.textContent = 'Busca el número de la carta y la edición en tiempo real.';
+    capture('Encuadra la carta. Buscando número y edición…', canvas => readPhoto(canvas, true), readLiveFrame);
   };
 
   foilButton.onclick = () => {
@@ -286,6 +296,48 @@ function finder(mode) {
     });
     if (!reply.ok) throw Error();
     return (await reply.json()).text;
+  }
+
+  async function readLiveFrame(frame) {
+    if (!await load() || !root.isConnected) return;
+    const footer = document.createElement('canvas');
+    const height = Math.round(frame.height * .22);
+    const width = Math.round(frame.width * .96);
+    footer.width = Math.min(width * 2, 1400);
+    footer.height = Math.max(1, Math.round(footer.width * height / width));
+    const context = footer.getContext('2d');
+    context.filter = 'grayscale(1) contrast(1.35) brightness(1.04)';
+    context.drawImage(frame, Math.round(frame.width * .02), frame.height - height,
+      width, height, 0, 0, footer.width, footer.height);
+    const controller = new AbortController();
+    const text = await recognize(footer.toDataURL('image/jpeg', .9), controller.signal, true);
+    if (!cameraDialog.open || !root.isConnected) return;
+    let matches = searchCards(catalog, text, '', true);
+    if (!matches.length) {
+      liveSignature = '';
+      liveRepeats = 0;
+      liveRanked = [];
+      cameraDialog.querySelector('.camera-status').textContent = 'Leyendo el número de colección y la edición…';
+      return;
+    }
+    const signature = matches.slice(0, 3).map(card => card[0]).join('|');
+    const repeated = signature === liveSignature;
+    liveRepeats = repeated ? liveRepeats + 1 : 1;
+    if (!repeated) liveRanked = [];
+    liveSignature = signature;
+    if (liveRepeats < 2) {
+      cameraDialog.querySelector('.camera-status').textContent = 'Posible número detectado. Mantén la carta quieta…';
+      return;
+    }
+    scannedText = text;
+    if (liveRepeats === 2) liveRanked = await rankCardImages(frame, matches);
+    if (!cameraDialog.open || !root.isConnected) return;
+    if (liveRanked.length) matches = liveRanked;
+    const [id, name, set, number] = matches[0];
+    cameraDialog.querySelector('.camera-status').textContent =
+      'Coincidencia: ' + name + ' · ' + catalog.sets[set][0] + ' · #' + number + '. Toca capturar para confirmar.';
+    scanStatus.textContent = 'Encontramos una posible carta. Captúrala y confirma la edición, número, idioma y acabado.';
+    if (liveRepeats === 2) show(matches, 'No encontramos otras coincidencias.');
   }
 
   async function readPhoto(file, framed = false) {
@@ -330,7 +382,9 @@ function finder(mode) {
       const successful = scans.filter(scan => scan.status === 'fulfilled');
       if (!successful.length) throw Error();
       scannedText = successful.map(scan => scan.value).join('\n');
-      const matches = searchCards(catalog, scannedText, '', true);
+      let matches = searchCards(catalog, scannedText, '', true);
+      if (framed && matches.length) matches = await rankCardImages(file, matches);
+      if (seq !== scanSequence || !root.isConnected) return;
       scanStatus.textContent = matches.length
         ? 'Elige la coincidencia correcta y revisa el idioma y acabado.'
         : 'No encontramos una coincidencia en la foto. Prueba por nombre, edición o número.';
@@ -362,7 +416,7 @@ function finder(mode) {
     if (listedFinishes.length > 1) {
       hints.push('Versiones en el catálogo: ' + listedFinishes.map(value => finishes[value].toLowerCase()).join(', ') + '.');
     }
-    const image = photo || `https://images.pokemontcg.io/${encodeURIComponent(set)}/${encodeURIComponent(id.slice(set.length + 1))}.png`;
+    const image = `/api/card-image?${new URLSearchParams({ set, number })}`;
     selection.innerHTML = `<div class="card-heading"><img class="card-art" src="${esc(image)}" alt=""><div><h3 tabindex="-1">${esc(name)}</h3><p>${esc(edition)} · #${esc(number)}${rarity ? ' · ' + esc(rarity) : ''}</p></div></div>
       <form><div class="fields">
       <label>Idioma<select name="language" required><option value="">Selecciona</option>${options(languages)}</select></label>
@@ -465,7 +519,7 @@ async function showMarket(target, key, card) {
     const value = await reply.json();
     if (!reply.ok) throw Error(value.error);
     usd.textContent = value.amount != null
-      ? `${money(value.amount, value.currency)} · Precio de mercado${value.updated ? ' · ' + value.updated : ''}`
+      ? `${money(value.amount, value.currency)} · TCGdex${value.updated ? ' · ' + value.updated : ''}${value.stale ? ' · dato guardado en caché' : ''}`
       : 'TCGplayer no tiene un precio de mercado disponible para este acabado.';
     for (const [key, allowed] of [['tcgplayer', 'tcgplayer.com'], ['cardmarket', 'cardmarket.com']]) {
       if (!value[key]) continue;

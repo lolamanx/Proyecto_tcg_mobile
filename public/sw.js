@@ -1,4 +1,4 @@
-const cacheName = 'cardfolio-shell-v2';
+const cacheName = 'cardfolio-shell-v3';
 const shell = ['/', '/style.css', '/app.js', '/catalog-tools.mjs', '/camera.mjs', '/catalog.json',
   '/icon.png', '/icon-512.png', '/hero.webp', '/manifest.webmanifest'];
 

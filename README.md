@@ -22,10 +22,10 @@ En Codex Cloud puedes agregar el puerto **3000** en **Editar entorno → HTTP Pr
 
 ## Flujos
 
-- **Registrar carta.** Encuadra la carta con la cámara trasera. La app recorta la imagen y hace una segunda lectura OCR de la franja inferior. Elige la coincidencia de catálogo y confirma idioma, acabado y cantidad. También puedes buscar por nombre, número o edición. La foto se redimensiona antes de enviarse al servidor para OCR y solo la miniatura que decidas guardar queda en la colección.
+- **Registrar y consultar.** Mientras la cámara está abierta, Cardfolio lee fotogramas en vivo, busca el número y la edición en el catálogo, y compara la imagen encuadrada con las cartas de referencia para ordenar las coincidencias. Captura para revisar y confirmar edición, número, idioma y acabado antes de guardar o consultar. También puedes buscar por nombre, número o edición.
 - **Consultar carta.** Busca por foto o texto y confirma la versión. Se compara la edición, el número, el idioma y el acabado. El catálogo puede sugerir un acabado cuando documenta uno solo. Cuando documenta varios, la app muestra las opciones. Después de usar la cámara guiada, **Comprobar reflejo** permite tomar una segunda foto con una leve inclinación. La comparación de color se realiza en el teléfono y puede sugerir holo o reverse holo. Confirma con la carta si el resultado es dudoso o si hay varios acabados posibles.
-- **Precios.** TCGplayer en USD se consulta mediante `api.pokemontcg.io` para cartas en inglés que tienen precio publicado para el acabado seleccionado. `POKEMONTCG_API_KEY` es opcional para solicitudes al API. Puedes abrir TCGMatch Chile para anotar un valor en CLP con su fuente y fecha. Cardmarket también está disponible como enlace. La app no convierte USD en CLP ni presenta precios de otra versión.
-- **Sin conexión.** Una vez cargada, la app puede abrir la colección y buscar en el catálogo local. El escáner y la consulta automática de precios necesitan llegar al servidor. Las imágenes de referencia requieren acceso a `images.pokemontcg.io`.
+- **Precios.** Los datos disponibles de TCGplayer/Cardmarket se consultan desde TCGdex, sin depender de la cuota mensual de 1.000 llamadas de Pokémon TCG API. El servidor guarda una copia por carta durante 24 horas y puede mostrarla hasta 30 días si la fuente no responde. La consulta inicial aún necesita internet y depende de la disponibilidad/cobertura de TCGdex. Para Chile puedes abrir TCGMatch y guardar localmente el precio en CLP, tienda y fecha; la app no convierte USD en CLP ni inventa cotizaciones.
+- **Sin conexión.** La colección y el catálogo se guardan localmente. La búsqueda OCR en Android se procesa en el teléfono; la versión web necesita su servidor OCR. Precios nuevos e imágenes de referencia requieren internet, y los precios ya consultados quedan en caché.
 
 ## Catálogo
 
@@ -44,4 +44,4 @@ cd android
 ./gradlew assembleDebug
 ```
 
-El APK de prueba se genera en `android/build/outputs/apk/debug/`. Descárgalo y ábrelo en Android usando Archivos. Si el teléfono pide permiso, habilita **Instalar apps desconocidas** para Archivos durante la instalación. Puedes deshabilitarlo al terminar. Para distribuir futuras actualizaciones, genera una versión de producción firmada con tu propia clave y conserva esa clave de forma segura. Android requiere la misma firma para actualizar una instalación existente.
+El APK de prueba se genera en `android/build/outputs/apk/debug/`. Al subir cambios a `main`, GitHub Actions compila el APK y lo publica como descarga de prueba. Descárgalo y ábrelo en Android usando Archivos. Si el teléfono pide permiso, habilita **Instalar apps desconocidas** para Archivos durante la instalación. Puedes deshabilitarlo al terminar. Para distribuir futuras actualizaciones, genera una versión de producción firmada con tu propia clave y conserva esa clave de forma segura. Android requiere la misma firma para actualizar una instalación existente.
