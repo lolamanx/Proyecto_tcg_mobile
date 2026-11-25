@@ -17,8 +17,20 @@ def inspect(group):
         total = prefix[1] + str(total)
     result = [sid, edition, cid, name, number, total, code, url]
     try:
-        with urllib.request.urlopen(url, timeout=15) as response:
-            image = Image.open(io.BytesIO(response.read())).convert('L')
+        series = re.match(r'[a-z]+',sid).group()
+        sources = [f'https://images.scrydex.com/pokemon/{cid}/large', url,
+                   f'https://assets.tcgdex.net/en/{series}/{sid}/{number}/high.webp']
+        for source in dict.fromkeys(sources):
+            try:
+                request = urllib.request.Request(source, headers={'User-Agent':'Cardfolio/1.0', 'Accept':'image/*'})
+                with urllib.request.urlopen(request, timeout=8) as response:
+                    image = Image.open(io.BytesIO(response.read())).convert('L')
+                result[7] = source
+                break
+            except Exception as error:
+                last_error = error
+        else:
+            raise last_error
         w, h = image.size
         band = ImageOps.autocontrast(image.crop((0, int(.76*h), w, h)))
         band = band.resize((1400, max(1, round(band.height*1400/w))))
@@ -31,7 +43,7 @@ def inspect(group):
         printed = bool(code and code.upper() in re.findall(r'[A-Z0-9]+',text))
         return result + [int(pair), int(printed), 'leída' if pair or printed else 'revisar imagen']
     except Exception as error:
-        return result + ['', '', type(error).__name__]
+        return result + ['', '', str(error)[:150]]
 
 if __name__ == '__main__':
     folder = Path('data/90f27d0')
@@ -44,3 +56,5 @@ if __name__ == '__main__':
     profiles = {row[0]: {'pair': row[8] == 1, 'code': row[9] == 1} for row in rows}
     Path('public/edition-profiles.json').write_text(json.dumps(profiles))
     print('Edition audit:', len(rows), 'samples;', sum(r[8] == 1 for r in rows), 'pairs;', sum(r[9] == 1 for r in rows), 'codes;', sum(r[8] == '' for r in rows), 'unavailable')
+    from collections import Counter
+    print('Sample status:', Counter(row[-1] for row in rows).most_common(8))
