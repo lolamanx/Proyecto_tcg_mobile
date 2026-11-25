@@ -11,3 +11,7 @@
 .scan-frame{height:83%;width:auto;max-width:90%;aspect-ratio:63/88;top:47%;border:1px solid #d6f7bc99}
 .scan-frame b{top:auto;bottom:7%;left:5%;right:5%}
 .camera-stage.camera-on .scan-frame{box-shadow:0 0 0 999px #09132165}
+
+.bottom-nav{gap:0;justify-content:space-around;padding-inline:8px}
+#pending-page>[data-go-scan]{margin-top:16px}
+#pending-summary{color:#53606b;font-size:14px}

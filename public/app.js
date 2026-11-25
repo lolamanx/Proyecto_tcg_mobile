@@ -52,6 +52,54 @@ function saveCollection() {
   }
 }
 
+// Keep the review tray across restarts until the user saves or discards each scan.
+const pendingKey = 'cardfolio.pending.v1';
+let pending = [];
+try { pending = JSON.parse(localStorage.getItem(pendingKey) || '[]'); } catch {}
+let heldCard = '';
+let latestEntry;
+let blankFrames = 0;
+
+function storePending(next) {
+  try { localStorage.setItem(pendingKey, JSON.stringify(next)); }
+  catch { return false; }
+  pending = next;
+  renderPending();
+  return true;
+}
+
+function enqueue(results, text, live) {
+  const card = results[0].card;
+  if (live && heldCard === card.id) return 'Ya está en pendientes. Acerca la siguiente carta.';
+  const entry = {
+    id: Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-'), source: $('#catalog-source').value, text: text.trim().slice(0,700),
+    key: lastScan?.key, time: Date.now(),
+    options: results.slice(0,5).map(r => ({card:r.card,score:r.score,signals:r.signals,stamp:stampHint(lastScan,r.card)}))
+  };
+  if (!storePending([...pending,entry])) return 'Sin espacio para guardar la lectura. Revisa tus pendientes.';
+  heldCard = card.id;
+  latestEntry = entry;
+  $('#next-copy').hidden = !live;
+  return 'Añadida a pendientes. Puedes escanear la siguiente carta.';
+}
+
+function renderPending() {
+  const count = pending.length;
+  $('#pending-count').hidden = !count;
+  $('#pending-count').textContent = count;
+  $('#pending-summary').textContent = count ? count + (count===1 ? ' lectura por revisar.' : ' lecturas por revisar.') + ' Toca una carta para ver los detalles.' : 'Aquí aparecerán las cartas que escanees.';
+  const list = $('#pending-list');
+  list.replaceChildren();
+  for (const entry of pending) {
+    const card = entry.options[0].card;
+    const row = document.createElement('button');
+    row.className = 'match-card';
+    row.innerHTML = `<img loading="lazy" src="${html(cardPhoto(card)||'/icon.svg')}" alt=""><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)} · ${html(card.number)}/${html(card.total)}</small><small>${html(languages[card.scanLanguage || card.language] || 'Idioma pendiente')} · ${new Date(entry.time).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}</small></span><span>›</span>`;
+    row.onclick = () => openCard(card,entry);
+    list.append(row);
+  }
+}
+
 function normalize(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
@@ -131,7 +179,8 @@ function showMatches(results, note = '') {
     item.className = 'match-card';
     item.innerHTML = `<img src="${html(cardPhoto(card))}" alt="Referencia ${html(card.name)}" loading="lazy"><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)}${exclusive(card) ? ' · Exclusiva en '+languages[exclusive(card)] : ''} · ${html(card.number)}/${html(card.total)}</small><small class="match-score">${html(score)} · ${html(signals)}${visual}</small><small class="match-confirm">Confirma la edición con tu carta ↗</small></span><span class="match-arrow">›</span>`;
     item.querySelector('img').addEventListener('error', event => { event.currentTarget.src = '/icon.svg'; });
-    item.addEventListener('click', () => openCard(card));
+    const entry = latestEntry?.options.some(r=>r.card.id===card.id) ? latestEntry : null;
+    item.addEventListener('click', () => openCard(card, pending.includes(entry) ? entry : null));
     matches.append(item);
   }
 }
@@ -238,7 +287,9 @@ async function readFrame(source, live = false, sampledQuality) {
         $('#ocr-state').textContent = 'NÚMERO Y EDICIÓN LEÍDOS';
         $('#camera-state').textContent = 'CARTA DETECTADA · REVISA LA COINCIDENCIA';
         const glareHint = quality.glare > .10 ? ' Hay reflejo fuerte; inclina un poco la carta y compara otra vez.' : '';
-        showMatches(stable, `Lectura estable en varias capturas. El puntaje ordena candidatos; no es una probabilidad.${glareHint}`);
+        if (stable[0].card.id === found[0].card.id && stable[0].score >= .5) {
+          showMatches(stable, enqueue(stable,text,true) + glareHint);
+        }
       } else if (found.length) {
         $('#ocr-state').textContent = 'COMPARANDO NÚMERO, NOMBRE E IMAGEN';
         $('#camera-state').textContent = 'MANTÉN LA CARTA QUIETA PARA CONFIRMAR';
@@ -251,7 +302,7 @@ async function readFrame(source, live = false, sampledQuality) {
     }
     $('#ocr-state').textContent = 'FOTO LEÍDA';
     const glareHint = quality.glare > .10 ? 'La foto tiene reflejos; revisa el número y las imágenes con cuidado.' : 'El puntaje combina el texto leído y la similitud de imagen cuando está disponible.';
-    showMatches(found, found.length ? glareHint : 'No encontramos una coincidencia; busca manualmente abajo.');
+    showMatches(found, found.length ? enqueue(found,text,false) + ' ' + glareHint : 'No encontramos una coincidencia; busca manualmente abajo.');
   } catch (error) {
     if (generation !== scanGeneration) return;
     showMatches(lastScan ? suggestions(lastScan,catalog,'',$('#catalog-source').value) : []);
@@ -289,9 +340,11 @@ async function startCamera() {
     recognitionHistory.length = 0;
     const sample = bestOfBurst(camera,cropLiveCard,assessCardImage,({canvas,quality})=>{
       if (quality.contrast<10 || quality.dark>.87 || quality.glare>.85) {
+        if (++blankFrames >= 3) { heldCard=''; latestEntry=null; recognitionHistory.length=0; }
         $('#camera-state').textContent='BUSCANDO DETALLE · AJUSTA EL ÁNGULO';
         return;
       }
+      blankFrames=0;
       if (!busy && catalog.cards.length) readFrame(canvas,true,quality);
     });
     scanTimer = setInterval(()=>{if(stream && !busy) sample();},110);
@@ -304,6 +357,8 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  $('#next-copy').hidden=true;
+  heldCard=''; latestEntry=null; blankFrames=0;
   scanGeneration++;
   clearInterval(scanTimer);
   stream?.getTracks().forEach(track => track.stop());
@@ -339,12 +394,13 @@ async function scanFile(file) {
   camera.poster = currentPhoto;
 }
 
-function openCard(card) {
-  const sample = lastScan;
+function openCard(card, entry = null) {
+  const option = entry?.options.find(r=>r.card.id===card.id);
+  const sample = entry ? (entry.key ? {key:entry.key} : null) : lastScan;
   if (stream) stopCamera();
-  const stamp = stampHint(sample, card);
+  const stamp = entry ? option?.stamp : stampHint(sample, card);
   const only = exclusive(card);
-  const sourceCatalog = $('#catalog-source').value;
+  const sourceCatalog = entry?.source || $('#catalog-source').value;
   const existing = collection.filter(item => item.cardId === card.id).reduce((n, item) => n + item.quantity, 0);
   const content = $('#dialog-content');
   const marketSearch = encodeURIComponent(`${card.name} ${card.number}`);
@@ -364,6 +420,24 @@ function openCard(card) {
       <button class="button button-primary button-wide" type="submit">Añadir a mi colección</button>
       <p class="form-feedback" id="form-feedback" role="status"></p>
     </form>`;
+  if (entry) {
+    const review = document.createElement('section');
+    review.className = 'card-form';
+    review.innerHTML = `<p>Lectura · ${html(option?.signals?.join(', ') || 'imagen')} · ${Math.round(100*(option?.score || 0))}/100</p>
+      ${entry.options.length>1 ? '<label>Coincidencias<select id="review-choice"></select></label>' : ''}
+      <details><summary>Texto leído de la carta</summary><p>${html(entry.text || 'Sin texto legible')}</p></details>
+      <button type="button" class="button button-outline">Descartar esta lectura</button>`;
+    const picker = review.querySelector('select');
+    if (picker) {
+      for (const r of entry.options) picker.add(new Option(r.card.name+' · '+r.card.setName+' · '+r.card.number+'/'+r.card.total,r.card.id,false,r.card.id===card.id));
+      picker.onchange = () => openCard(entry.options.find(r=>r.card.id===picker.value).card,entry);
+    }
+    review.querySelector('button').onclick = () => {
+      if (storePending(pending.filter(r=>r.id!==entry.id))) cardDialog.close();
+      else $('#form-feedback').textContent='No se pudo descartar la lectura.';
+    };
+    content.querySelector('.dialog-heading').after(review);
+  }
   content.querySelector('.dialog-heading img').addEventListener('error', event => { event.currentTarget.src = '/icon.svg'; });
   content.querySelector('#card-form').addEventListener('submit', event => {
     event.preventDefault();
@@ -382,15 +456,30 @@ function openCard(card) {
     }
     const updated = { ...(previous || {}), key, stamp, exclusiveLanguage: only, cardId: card.id, name: card.name, setName: card.setName, number: card.number, total: card.total, image: card.image, language, finish, quantity: (previous?.quantity || 0) + quantity };
     if (price > 0) updated.price = { amount: price, source: source || 'Precio anotado', date: new Date().toISOString() };
+    const before = collection;
     collection = collection.filter(item => item.key !== key).concat(updated);
     if (!saveCollection()) {
+      collection = before;
       $('#form-feedback').textContent = 'No se pudo guardar en este dispositivo.';
       return;
     }
+    if (entry && !storePending(pending.filter(r=>r.id!==entry.id))) {
+      event.currentTarget.querySelector('button[type=submit]').disabled = true;
+      $('#form-feedback').textContent = 'Carta guardada. Descarta esta lectura para quitarla de pendientes.';
+      return;
+    }
+    event.currentTarget.querySelector('button[type=submit]').disabled = true;
     if (data.has('learn')) remember(sample,card,sourceCatalog);
     event.currentTarget.querySelector('button[type=submit]').textContent = 'Guardada ✓';
     $('#form-feedback').textContent = `${card.name} quedó en tu colección.`;
-    setTimeout(() => cardDialog.close(), 600);
+    const next = entry && !$('#pending-page').hidden ? pending[0] : null;
+    if (next) {
+      const button = document.createElement('button');
+      button.type='button'; button.className='button button-primary'; button.textContent='Revisar siguiente';
+      button.onclick=()=>openCard(next.options[0].card,next);
+      content.replaceChildren(document.createTextNode(card.name+' guardada. '),button);
+      button.focus();
+    } else cardDialog.close();
   });
   if (only) {
     const select = content.querySelector('[name=language]');
@@ -399,7 +488,7 @@ function openCard(card) {
   const detectedLanguage = only || card.scanLanguage || card.language;
   if (detectedLanguage) content.querySelector('[name=language]').value = detectedLanguage;
   else content.querySelector('[name=language]').value = 'und';
-  cardDialog.showModal();
+  if (!cardDialog.open) cardDialog.showModal();
 }
 
 function renderCollection() {
@@ -432,14 +521,23 @@ function renderCollection() {
 function navigate(page) {
   const scanning = page === 'scan';
   $('#scan-page').hidden = !scanning;
-  $('#collection-page').hidden = scanning;
+  $('#collection-page').hidden = page !== 'collection';
+  $('#pending-page').hidden = page !== 'pending';
+  $('#pending-page').classList.toggle('active',page === 'pending');
+  if (page === 'pending') renderPending();
   $('#scan-page').classList.toggle('active', scanning);
-  $('#collection-page').classList.toggle('active', !scanning);
+  $('#collection-page').classList.toggle('active', page === 'collection');
   document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('selected', button.dataset.page === page));
   if (!scanning) stopCamera();
   else { paused=false; renderCollection(); startCamera(); }
 }
 
+$('#next-copy').addEventListener('click', () => {
+  scanGeneration++;
+  heldCard=''; latestEntry=null; recognitionHistory.length=0;
+  $('#next-copy').hidden=true;
+  message.textContent='Alinea la siguiente copia en el marco.';
+});
 $('#camera-button').addEventListener('click', () => {
   paused=!!stream || opening;
   if (paused) stopCamera(); else startCamera();
@@ -501,5 +599,6 @@ sourcePicker.addEventListener('change', async () => {
     startCamera();
   }
 });
+renderPending();
 renderCollection();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

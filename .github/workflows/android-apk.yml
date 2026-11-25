@@ -29,6 +29,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y tesseract-ocr python3-pil
           OMP_THREAD_LIMIT=1 /usr/bin/python3 scripts/audit-editions.py
+      - name: Verify pending review flow
+        run: |
+          python3 -m venv /tmp/cardfolio-review
+          /tmp/cardfolio-review/bin/pip install -q playwright==1.56.0
+          node server.mjs &
+          trap 'kill $!' EXIT
+          /tmp/cardfolio-review/bin/python scripts/check-pending.py
       - name: Compile APK
         working-directory: android
         run: |

@@ -45,6 +45,7 @@
           <button class="button button-outline button-wide" id="upload-button"><span>▧</span> Elegir una foto</button>
           <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
         </div>
+        <button type="button" class="button button-outline button-wide" id="next-copy" hidden>Escanear otra copia idéntica</button>
         <details><summary>Ajustar catálogo manualmente</summary><label for="catalog-source">Catálogo para escanear y buscar</label>
         <select id="catalog-source" disabled>
           <option value="archive">Inglés · archivo de 177 ediciones</option>
@@ -90,8 +91,15 @@
       <div class="empty-collection" id="empty-collection"><span>▱</span><h2>Tu álbum comienza aquí</h2><p>Escanea una carta y guárdala para verla en esta lista.</p><button class="button button-primary" data-go-scan>Escanear primera carta</button></div>
     </section>
 
+    <section class="page" id="pending-page" hidden aria-labelledby="pending-title">
+      <div class="page-heading"><h1 id="pending-title">Pendientes</h1></div>
+      <p id="pending-summary" role="status"></p>
+      <div id="pending-list" class="collection-list"></div>
+      <button class="button button-outline" data-go-scan>Seguir escaneando</button>
+    </section>
     <nav class="bottom-nav" aria-label="Navegación principal">
       <button class="nav-item selected" data-page="scan"><span class="nav-icon">⌗</span><span>Escanear</span></button>
+      <button class="nav-item" data-page="pending"><span class="nav-icon">☷</span><span>Pendientes</span><span class="nav-dot" id="pending-count" hidden></span></button>
       <button class="nav-item" data-page="collection"><span class="nav-icon">▤</span><span>Colección</span><span class="nav-dot" id="nav-count" hidden></span></button>
     </nav>
   </main>
