@@ -54,13 +54,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Publish test APK
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk-preview-${{ github.run_number }}
-          name: Cardfolio APK de prueba #${{ github.run_number }}
-          body: "APK de prueba generado desde ${{ github.sha }}."
-          prerelease: true
-          make_latest: false
-          files: |
-            android/build/outputs/apk/debug/*.apk
-            ediciones.csv
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: apk-preview-${{ github.run_number }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "Cardfolio APK de prueba" --notes "Compilación $GITHUB_SHA" --prerelease
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" android/build/outputs/apk/debug/*.apk ediciones.csv --clobber; then exit 0; fi
+            sleep 3
+          done
+          exit 1
