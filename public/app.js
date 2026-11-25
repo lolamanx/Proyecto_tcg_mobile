@@ -1,10 +1,12 @@
+import { loadCatalog } from './catalog-online.js';
 import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
 
 const languages = { es: 'Español', en: 'Inglés', ja: 'Japonés', pt: 'Portugués', fr: 'Francés', de: 'Alemán', it: 'Italiano' };
 const finishes = { normal: 'Normal', holo: 'Holográfica', reverse: 'Reverse holo', other: 'Otro acabado' };
 const STORAGE_KEY = 'cardfolio.collection.v1';
-const catalogRequest = fetch('/catalog.json').then(response => {
-  if (!response.ok) throw new Error('No se pudo cargar el catálogo.');
+const catalogRequest = loadCatalog().catch(async () => {
+  const response = await fetch('/catalog.json');
+  if (!response.ok) throw new Error('Catálogo inaccesible');
   return response.json();
 });
 let catalog = { cards: [] };
@@ -59,7 +61,7 @@ function updateCounts() {
 }
 
 function referenceURL(card) {
-  if (card.setId && card.number) return '/api/reference-image?' + new URLSearchParams({ set: card.setId, number: card.number });
+  if (card.image === `https://images.pokemontcg.io/${card.setId}/${card.number}.png`) return '/api/reference-image?' + new URLSearchParams({ set: card.setId, number: card.number });
   return card.image || '';
 }
 
@@ -67,6 +69,7 @@ function loadReferenceCanvas(card) {
   if (referenceCanvasCache.has(card.id)) return referenceCanvasCache.get(card.id);
   const request = new Promise((resolve, reject) => {
     const image = new Image();
+    image.crossOrigin = 'anonymous';
     image.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = 240;
@@ -369,7 +372,7 @@ window.addEventListener('pagehide', stopCamera);
 
 try {
   catalog = await catalogRequest;
-  message.textContent = `Catálogo de demostración listo · ${catalog.cards.length} cartas.`;
+  message.textContent = `${catalog.editions ? catalog.editions + ' ediciones en línea' : 'Sin catálogo en línea · muestra local'} · ${catalog.cards.length} cartas.`;
 } catch {
   message.textContent = 'No se pudo abrir el catálogo local. Revisa la conexión y recarga.';
 }

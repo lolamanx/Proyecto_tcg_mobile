@@ -34,6 +34,11 @@ jobs:
           path: android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Read a sample scan from each edition
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr python3-pil
+          OMP_THREAD_LIMIT=1 /usr/bin/python3 scripts/audit-editions.py
       - name: Publish test APK
         uses: softprops/action-gh-release@v2
         with:
@@ -42,4 +47,6 @@ jobs:
           body: "APK de prueba generado desde ${{ github.sha }}."
           prerelease: true
           make_latest: false
-          files: android/build/outputs/apk/debug/*.apk
+          files: |
+            android/build/outputs/apk/debug/*.apk
+            ediciones.csv

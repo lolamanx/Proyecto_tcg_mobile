@@ -4,7 +4,7 @@ const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
 function numericHypothesis(token) {
   const upper = token.toUpperCase();
-  if (!/^[0-9OQDIILSZGB]+$/.test(upper)) return { value: cleanNumber(upper), penalty: 0 };
+  if (!/^[0-9OQDIILSZGB]+$/.test(upper)) return { value: cleanNumber(upper), penalty: /\d/.test(upper) ? 1 : 0 };
   const swaps = { O: '0', Q: '0', D: '0', I: '1', L: '1', S: '5', Z: '2', G: '6', B: '8' };
   let corrections = 0;
   const value = cleanNumber([...upper].map(char => {
@@ -65,17 +65,12 @@ function manualSearchScore(card, query) {
   const name = normalize(card.name);
   const set = normalize(card.setName);
   if (pair) return pair.number === number && pair.total === total ? 1 : 0;
-  if (/^#?\s*[\da-z]{1,6}$/i.test(input)) return number === cleanNumber(input.replace(/^#/, '')) ? .78 : 0;
+  if (/\d/.test(input) && /^#?\s*[\da-z]{1,6}$/i.test(input)) return number === cleanNumber(input.replace(/^#/, '')) ? .78 : 0;
   const tokens = input.split(/[^\p{L}\d]+/u).filter(token => token.length > 1);
   if (!tokens.length) return 0;
   const haystack = normalize(`${card.name} ${card.setName} ${card.number}/${card.total} ${card.setId ?? ''}`);
   if (!tokens.every(token => haystack.includes(token))) return 0;
   return input === name ? .92 : name.startsWith(input) ? .82 : set.includes(input) ? .76 : .68;
-}
-
-function numberAppears(number, text) {
-  const wanted = cleanNumber(number);
-  return String(text ?? '').match(/[a-z0-9]+/gi)?.some(token => cleanNumber(token) === wanted) ?? false;
 }
 
 export function rankCardCandidates(catalog, text, { manual = false, ocrConfidence = 65, qualityPenalty = 0 } = {}) {
@@ -88,6 +83,8 @@ export function rankCardCandidates(catalog, text, { manual = false, ocrConfidenc
   const confidence = Number.isFinite(Number(ocrConfidence)) ? Number(ocrConfidence) : 65;
   const ocrFactor = .88 + .12 * clamp(confidence / 100);
   const imageFactor = 1 - clamp(qualityPenalty, 0, .25);
+  const names = new Map(), sets = new Map();
+  const tokens = new Set(input.split(/[^a-z0-9]+/).map(cleanNumber));
   const results = [];
   for (const card of catalog.cards) {
     const number = cleanNumber(card.number);
@@ -96,15 +93,20 @@ export function rankCardCandidates(catalog, text, { manual = false, ocrConfidenc
     for (const pair of pairs) {
       if (pair.number === number && pair.total === total) pairQuality = Math.max(pairQuality, pair.weight);
     }
-    const name = phraseSimilarity(card.name, input);
-    const set = phraseSimilarity(card.setName, input);
-    const numberMentioned = numberAppears(number, input);
+    if (!names.has(card.name)) names.set(card.name, phraseSimilarity(card.name, input));
+    const name = names.get(card.name);
+    if (!sets.has(card.setId)) sets.set(card.setId, phraseSimilarity(card.setName, input));
+    const set = sets.get(card.setId);
+    const codeRead = card.code && tokens.has(card.code.toUpperCase());
+    const numberMentioned = tokens.has(number);
     let score = 0;
     const signals = [];
     if (pairQuality) { score += .56 * pairQuality; signals.push('número y total'); }
     else if (numberMentioned) { score += .28; signals.push('número'); }
     if (name >= .72) { score += .31 * name; signals.push(name === 1 ? 'nombre' : 'nombre aproximado'); }
     if (set >= .78) { score += .13 * set; signals.push('edición'); }
+    if (codeRead && (pairQuality || numberMentioned || name >= .72)) { score += .22; signals.push('código de edición'); }
+    if (pairs.some(pair => pair.weight === 1) && !pairQuality) score *= .35;
     if (!score) continue;
     score = clamp(score * ocrFactor * imageFactor);
     results.push({ card, score, signals, visualScore: null });
