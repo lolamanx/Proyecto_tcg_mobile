@@ -60,6 +60,15 @@
           <label for="card-search">O busca por nombre o número</label>
           <div><input id="card-search" type="search" placeholder="Pikachu, 58 o 58/102" autocomplete="off"><button class="button button-dark" aria-label="Buscar">⌕</button></div>
         </form>
+        <details><summary>Ingresar carta manualmente</summary>
+          <form id="custom-form" class="card-form">
+            <label>Nombre<input name="name" maxlength="100" required></label>
+            <label>Edición<input name="edition" maxlength="100" required></label>
+            <label>Número o código<input name="number" maxlength="30" required></label>
+            <label>Total impreso (opcional)<input name="total" maxlength="20"></label>
+            <button class="button button-dark">Revisar carta</button>
+          </form>
+        </details>
         <div class="scan-tip"><span>✦</span><p><b>Consejo:</b> buena luz y el número inferior enfocado ayudan a distinguir la edición.</p></div>
       </div>
 

@@ -1,3 +1,4 @@
+import {captureExample, suggestions, remember, exclusive, stampHint} from './scan-help.js';
 import { loadCatalog, loadLiveCatalog } from './catalog-online.js';
 import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
 
@@ -16,6 +17,8 @@ let busy = false;
 let ocrWorker;
 const recognitionHistory = [];
 const referenceCanvasCache = new Map();
+let lastScan;
+let scanGeneration = 0;
 let currentPhoto = '';
 let detectedCards = [];
 let collection = readCollection();
@@ -118,7 +121,7 @@ function showMatches(results, note = '') {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'match-card';
-    item.innerHTML = `<img src="${html(cardPhoto(card))}" alt="Referencia ${html(card.name)}" loading="lazy"><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)} · ${html(card.number)}/${html(card.total)}</small><small class="match-score">${html(score)} · ${html(signals)}${visual}</small><small class="match-confirm">Confirma la edición con tu carta ↗</small></span><span class="match-arrow">›</span>`;
+    item.innerHTML = `<img src="${html(cardPhoto(card))}" alt="Referencia ${html(card.name)}" loading="lazy"><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)}${exclusive(card) ? ' · Exclusiva en '+languages[exclusive(card)] : ''} · ${html(card.number)}/${html(card.total)}</small><small class="match-score">${html(score)} · ${html(signals)}${visual}</small><small class="match-confirm">Confirma la edición con tu carta ↗</small></span><span class="match-arrow">›</span>`;
     item.querySelector('img').addEventListener('error', event => { event.currentTarget.src = '/icon.svg'; });
     item.addEventListener('click', () => openCard(card));
     matches.append(item);
@@ -185,10 +188,12 @@ function cropLiveCard(video) {
 async function readFrame(source, live = false) {
   if (busy) return;
   busy = true;
+  const generation = scanGeneration;
   try {
-    const worker = await loadOcr();
     const cardArea = live ? cropLiveCard(source) : source;
+    lastScan = captureExample(cardArea);
     const quality = assessCardImage(cardArea);
+    const worker = await loadOcr();
     const result = await worker.recognize(makeOcrSheet(cardArea));
     const text = result.data.text || '';
     let found = rankCardCandidates(catalog, text, {
@@ -196,6 +201,15 @@ async function readFrame(source, live = false) {
       qualityPenalty: quality.penalty,
     });
     if (found.length) found = await rankWithCardImage(cardArea, found, loadReferenceCanvas);
+    if (generation !== scanGeneration) return;
+    const hints = suggestions(lastScan, catalog, found[0]?.score >= .5 ? '' : text, $('#catalog-source').value);
+    found = [...found, ...hints].sort((a,b)=>b.score-a.score).filter((r,i,all)=>all.findIndex(v=>v.card.id===r.card.id)===i).slice(0,8);
+    if (!found.length || found[0].score < .5) {
+      recognitionHistory.length = 0;
+      showMatches(found.slice(0,5), found.length ? 'Posibles cartas. Compara la edición o ingresa los datos manualmente.' : 'Sin coincidencias. Busca por nombre o ingresa la carta manualmente.');
+      $('#ocr-state').textContent = 'LECTURA INCIERTA';
+      return;
+    }
     if (live) {
       const stable = consensusCandidates(recognitionHistory, found);
       if (stable.length) {
@@ -217,6 +231,8 @@ async function readFrame(source, live = false) {
     const glareHint = quality.glare > .10 ? 'La foto tiene reflejos; revisa el número y las imágenes con cuidado.' : 'El puntaje combina el texto leído y la similitud de imagen cuando está disponible.';
     showMatches(found, found.length ? glareHint : 'No encontramos una coincidencia; busca manualmente abajo.');
   } catch (error) {
+    if (generation !== scanGeneration) return;
+    showMatches(lastScan ? suggestions(lastScan,catalog,'',$('#catalog-source').value) : []);
     $('#ocr-state').textContent = 'OCR NO DISPONIBLE';
     message.textContent = 'No pudimos leer el número. Usa la búsqueda manual o intenta otra foto.';
   } finally {
@@ -252,6 +268,7 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  scanGeneration++;
   clearInterval(scanTimer);
   stream?.getTracks().forEach(track => track.stop());
   stream = undefined;
@@ -266,6 +283,7 @@ function stopCamera() {
 async function scanFile(file) {
   if (!file) return;
   stopCamera();
+  lastScan = null;
   currentPhoto = URL.createObjectURL(file);
   const preview = new Image();
   preview.onload = () => readFrame(preview, false);
@@ -279,6 +297,11 @@ async function scanFile(file) {
 }
 
 function openCard(card) {
+  const sample = lastScan;
+  if (stream) stopCamera();
+  const stamp = stampHint(sample, card);
+  const only = exclusive(card);
+  const sourceCatalog = $('#catalog-source').value;
   const existing = collection.filter(item => item.cardId === card.id).reduce((n, item) => n + item.quantity, 0);
   const content = $('#dialog-content');
   const marketSearch = encodeURIComponent(`${card.name} ${card.number}`);
@@ -288,6 +311,10 @@ function openCard(card) {
     <form id="card-form" class="card-form">
       <label>Idioma<select name="language" required><option value="">Elige idioma</option>${Object.entries(languages).map(([key, value]) => `<option value="${key}">${value}</option>`).join('')}</select></label>
       <label>Acabado<select name="finish" required><option value="">Elige acabado</option>${Object.entries(finishes).map(([key, value]) => `<option value="${key}">${value}</option>`).join('')}</select></label>
+      ${only ? `<p>Impresión exclusiva en ${languages[only]} · ${html(card.setName)}</p>` : ''}
+      ${stamp ? `<p>Posible sello ${stamp}. Confírmalo con tu copia.</p>` : ''}
+      <label>Estampado<select name="stamp"><option value="">Sin sello confirmado</option><option>Eevee</option><option>Ditto</option><option>Otro</option></select></label>
+      ${sample ? '<label><input type="checkbox" name="learn"> Recordar esta imagen como ejemplo de la carta en este teléfono</label>' : ''}
       <label>Cantidad<input name="quantity" type="number" min="1" max="999" value="1" required></label>
       <details class="price-entry"><summary>Anotar un precio local (CLP)</summary><p>Guarda el precio que observes en una tienda; se etiqueta con la fecha de hoy y no se convierte desde otra moneda.</p><div class="price-fields"><label>Precio<input name="price" type="number" min="1" max="999999999" placeholder="Ej. 12500"></label><label>Tienda o fuente<input name="source" maxlength="60" placeholder="Tienda, TCGMatch…"></label></div></details>
       <p class="already-owned" ${existing ? '' : 'hidden'}>Ya tienes ${existing} copia(s) de esta carta en tu colección.</p>
@@ -301,7 +328,8 @@ function openCard(card) {
     const language = data.get('language');
     const finish = data.get('finish');
     const quantity = Number(data.get('quantity'));
-    const key = `${card.id}|${language}|${finish}`;
+    const stamp = String(data.get('stamp') || '');
+    const key = `${card.id}|${language}|${finish}` + (stamp ? '|' + stamp : '');
     const price = Number(data.get('price'));
     const source = String(data.get('source') || '').trim();
     const previous = collection.find(item => item.key === key);
@@ -309,17 +337,22 @@ function openCard(card) {
       $('#form-feedback').textContent = 'El máximo es 999 copias de esta versión.';
       return;
     }
-    const updated = { ...(previous || {}), key, cardId: card.id, name: card.name, setName: card.setName, number: card.number, total: card.total, image: card.image, language, finish, quantity: (previous?.quantity || 0) + quantity };
+    const updated = { ...(previous || {}), key, stamp, exclusiveLanguage: only, cardId: card.id, name: card.name, setName: card.setName, number: card.number, total: card.total, image: card.image, language, finish, quantity: (previous?.quantity || 0) + quantity };
     if (price > 0) updated.price = { amount: price, source: source || 'Precio anotado', date: new Date().toISOString() };
     collection = collection.filter(item => item.key !== key).concat(updated);
     if (!saveCollection()) {
       $('#form-feedback').textContent = 'No se pudo guardar en este dispositivo.';
       return;
     }
+    if (data.has('learn')) remember(sample,card,sourceCatalog);
     event.currentTarget.querySelector('button[type=submit]').textContent = 'Guardada ✓';
     $('#form-feedback').textContent = `${card.name} quedó en tu colección.`;
     setTimeout(() => cardDialog.close(), 600);
   });
+  if (only) {
+    const select = content.querySelector('[name=language]');
+    select.replaceChildren(new Option(languages[only], only));
+  }
   if (card.language) content.querySelector('[name=language]').value = card.language;
   cardDialog.showModal();
 }
@@ -333,7 +366,7 @@ function renderCollection() {
   for (const item of rows) {
     const row = document.createElement('article');
     row.className = 'collection-card';
-    row.innerHTML = `<img src="${html(item.image)}" alt="${html(item.name)}"><div class="collection-copy"><b>${html(item.name)}</b><small>${html(item.setName)} · ${html(item.number)}/${html(item.total)}</small><small>${languages[item.language]} · ${finishes[item.finish]}</small>${item.price ? `<small class="saved-price">${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(item.price.amount)} · ${html(item.price.source)} · ${new Date(item.price.date).toLocaleDateString('es-CL')}</small>` : ''}</div><div class="quantity-control"><button data-step="-1" aria-label="Quitar una copia">−</button><b>${item.quantity}</b><button data-step="1" aria-label="Añadir una copia">+</button></div>`;
+    row.innerHTML = `<img src="${html(item.image)}" alt="${html(item.name)}"><div class="collection-copy"><b>${html(item.name)}</b><small>${html(item.setName)} · ${html(item.number)}/${html(item.total)}</small><small>${languages[item.language]} · ${finishes[item.finish]}${item.stamp ? ' · Sello ' + html(item.stamp) : ''}${item.exclusiveLanguage ? ' · Exclusiva en '+languages[item.exclusiveLanguage] : ''}</small>${item.price ? `<small class="saved-price">${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(item.price.amount)} · ${html(item.price.source)} · ${new Date(item.price.date).toLocaleDateString('es-CL')}</small>` : ''}</div><div class="quantity-control"><button data-step="-1" aria-label="Quitar una copia">−</button><b>${item.quantity}</b><button data-step="1" aria-label="Añadir una copia">+</button></div>`;
     row.querySelector('img').addEventListener('error', event => { event.currentTarget.src = '/icon.svg'; });
     row.querySelectorAll('[data-step]').forEach(button => button.addEventListener('click', () => {
       const next = item.quantity + Number(button.dataset.step);
@@ -368,8 +401,17 @@ $('#photo-input').addEventListener('change', event => { const file = event.targe
 $('#manual-search').addEventListener('submit', event => {
   event.preventDefault();
   const found = rankCardCandidates(catalog, $('#card-search').value, { manual: true });
+  if (stream) stopCamera();
   if (found.length) showMatches(found, `Coincidencias para “${$('#card-search').value.trim()}”. Confirma número, edición e imagen.`);
   else showMatches([], 'No encontramos esa carta en el catálogo incluido. Puedes ajustar la búsqueda.');
+});
+$('#custom-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const fields = new FormData(event.currentTarget);
+  const [name,setName,number,total] = ['name','edition','number','total'].map(k=>String(fields.get(k)||'').trim());
+  if (!name || !setName || !number) return;
+  const catalogCard = catalog.cards.find(c=>normalize(c.name)===normalize(name) && normalize(c.setName)===normalize(setName) && normalize(c.number)===normalize(number) && (!total || String(c.total)===total));
+  openCard(catalogCard || {id:'manual:'+JSON.stringify([name,setName,number,total].map(normalize)),name,setName,number,total:total || '—',image:''});
 });
 $('#collection-search').addEventListener('input', renderCollection);
 document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => navigate(button.dataset.page)));
@@ -394,6 +436,7 @@ sourcePicker.addEventListener('change', async () => {
   message.textContent = 'Consultando el catálogo…';
   try {
     const next = selected === 'archive' ? await loadCatalog() : await loadLiveCatalog(selected);
+    lastScan = null;
     catalog = next;
     sourcePicker.dataset.active = selected;
     showMatches([], next.editions + ' ediciones · ' + next.cards.length + ' cartas disponibles.');
