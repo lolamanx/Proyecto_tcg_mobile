@@ -1,3 +1,5 @@
+import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
+
 const languages = { es: 'Español', en: 'Inglés', ja: 'Japonés', pt: 'Portugués', fr: 'Francés', de: 'Alemán', it: 'Italiano' };
 const finishes = { normal: 'Normal', holo: 'Holográfica', reverse: 'Reverse holo', other: 'Otro acabado' };
 const STORAGE_KEY = 'cardfolio.collection.v1';
@@ -10,8 +12,8 @@ let stream;
 let scanTimer;
 let busy = false;
 let ocrWorker;
-let stableText = '';
-let stableHits = 0;
+const recognitionHistory = [];
+const referenceCanvasCache = new Map();
 let currentPhoto = '';
 let detectedCards = [];
 let collection = readCollection();
@@ -56,53 +58,57 @@ function updateCounts() {
   $('#empty-collection').hidden = collection.length !== 0;
 }
 
-function findMatches(text, exact = false) {
-  const query = normalize(text);
-  if (!query) return [];
-  const pairs = [...query.matchAll(/\b(\d{1,4})\s*[\/|]\\?\s*(\d{1,4})\b/g)];
-  const numberOnly = query.match(/^#?\s*(\d{1,4})$/)?.[1];
-  const words = query.split(/[^\p{L}\d]+/u).filter(word => word.length > 1);
-  const ranked = catalog.cards.map(card => {
-    const name = normalize(card.name);
-    const setName = normalize(card.setName);
-    const number = String(card.number).replace(/^0+/, '');
-    const total = String(card.total).replace(/^0+/, '');
-    const pair = pairs.some(([, numerator, denominator]) => number === numerator.replace(/^0+/, '') && total === denominator.replace(/^0+/, ''));
-    const numberHit = numberOnly ? number === numberOnly.replace(/^0+/, '') : false;
-    const nameHit = query.includes(name) && name.length > 2;
-    const setHit = query.includes(setName) && setName.length > 2;
-    let score = pair ? 100 : numberHit ? 45 : nameHit ? 35 : 0;
-    if (setHit) score += 20;
-    if (!exact && !score && words.length) {
-      const search = normalize(`${card.name} ${card.setName} ${card.number}/${card.total}`);
-      if (words.every(word => search.includes(word))) score = 15;
-    }
-    return { card, score };
-  }).filter(entry => entry.score > 0).sort((a, b) => b.score - a.score || a.card.name.localeCompare(b.card.name));
-  return ranked.slice(0, 8).map(entry => entry.card);
-}
-
-function cardPhoto(card) {
+function referenceURL(card) {
+  if (card.setId && card.number) return '/api/reference-image?' + new URLSearchParams({ set: card.setId, number: card.number });
   return card.image || '';
 }
 
-function showMatches(cards, note = '') {
-  detectedCards = cards;
-  $('#match-count').textContent = cards.length;
+function loadReferenceCanvas(card) {
+  if (referenceCanvasCache.has(card.id)) return referenceCanvasCache.get(card.id);
+  const request = new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 336;
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas);
+    };
+    image.onerror = reject;
+    image.src = referenceURL(card);
+  }).catch(error => {
+    referenceCanvasCache.delete(card.id);
+    throw error;
+  });
+  referenceCanvasCache.set(card.id, request);
+  return request;
+}
+
+function cardPhoto(card) {
+  return referenceURL(card);
+}
+
+function showMatches(results, note = '') {
+  detectedCards = results.map(result => result.card || result);
+  $('#match-count').textContent = results.length;
   matches.replaceChildren();
-  if (!cards.length) {
+  if (!results.length) {
     message.textContent = note || 'No hubo coincidencias. Prueba con el nombre o el número de la carta.';
     $('#detected-badge').hidden = true;
     return;
   }
   message.textContent = note || 'Revisa la foto y confirma la edición antes de guardar.';
   $('#detected-badge').hidden = false;
-  $('#detected-name').textContent = `${cards[0].name} · ${cards[0].number}/${cards[0].total}`;
-  for (const card of cards) {
+  $('#detected-name').textContent = `${detectedCards[0].name} · ${detectedCards[0].number}/${detectedCards[0].total}`;
+  for (const result of results) {
+    const card = result.card || result;
+    const score = Number.isFinite(result.score) ? `Puntaje ${Math.round(result.score * 100)}/100` : 'Coincidencia de texto';
+    const signals = result.signals?.join(' + ') || 'texto';
+    const visual = Number.isFinite(result.visualScore) ? ' · imagen comparada' : '';
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'match-card';
-    item.innerHTML = `<img src="${html(cardPhoto(card))}" alt="Referencia ${html(card.name)}" loading="lazy"><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)} · ${html(card.number)}/${html(card.total)}</small><small class="match-confirm">Comprobar con la carta ↗</small></span><span class="match-arrow">›</span>`;
+    item.innerHTML = `<img src="${html(cardPhoto(card))}" alt="Referencia ${html(card.name)}" loading="lazy"><span class="match-copy"><b>${html(card.name)}</b><small>${html(card.setName)} · ${html(card.number)}/${html(card.total)}</small><small class="match-score">${html(score)} · ${html(signals)}${visual}</small><small class="match-confirm">Confirma la edición con tu carta ↗</small></span><span class="match-arrow">›</span>`;
     item.querySelector('img').addEventListener('error', event => { event.currentTarget.src = '/icon.svg'; });
     item.addEventListener('click', () => openCard(card));
     matches.append(item);
@@ -129,16 +135,25 @@ async function loadOcr() {
   return ocrWorker;
 }
 
-function cropFooter(source) {
+function makeOcrSheet(source) {
   const canvas = document.createElement('canvas');
   const width = source.videoWidth || source.naturalWidth || source.width;
   const height = source.videoHeight || source.naturalHeight || source.height;
-  const cropHeight = Math.round(height * .23);
-  canvas.width = Math.min(1100, width);
-  canvas.height = Math.max(1, Math.round(canvas.width * cropHeight / width));
+  canvas.width = Math.max(1, Math.min(1100, width));
+  const top = Math.round(height * .02);
+  const topHeight = Math.round(height * .20);
+  const bottom = Math.round(height * .80);
+  const bottomHeight = Math.round(height * .19);
+  const bandHeight = Math.round(canvas.width * topHeight / width);
+  const footerHeight = Math.round(canvas.width * bottomHeight / width);
+  const gap = Math.max(16, Math.round(canvas.width * .035));
+  canvas.height = bandHeight + footerHeight + gap;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.filter = 'grayscale(1) contrast(1.45)';
-  ctx.drawImage(source, 0, height - cropHeight, width, cropHeight, 0, 0, canvas.width, canvas.height);
+  ctx.filter = 'grayscale(1) contrast(1.38) brightness(1.04)';
+  ctx.drawImage(source, 0, top, width, topHeight, 0, 0, canvas.width, bandHeight);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, bandHeight, canvas.width, gap);
+  ctx.drawImage(source, 0, bottom, width, bottomHeight, 0, bandHeight + gap, canvas.width, footerHeight);
   return canvas;
 }
 
@@ -163,24 +178,34 @@ async function readFrame(source, live = false) {
   try {
     const worker = await loadOcr();
     const cardArea = live ? cropLiveCard(source) : source;
-    const result = await worker.recognize(cropFooter(cardArea));
+    const quality = assessCardImage(cardArea);
+    const result = await worker.recognize(makeOcrSheet(cardArea));
     const text = result.data.text || '';
-    const found = findMatches(text, true);
+    let found = rankCardCandidates(catalog, text, {
+      ocrConfidence: result.data.confidence,
+      qualityPenalty: quality.penalty,
+    });
+    if (found.length) found = await rankWithCardImage(cardArea, found, loadReferenceCanvas);
     if (live) {
-      const signature = found.map(card => card.id).join('|') || normalize(text).slice(0, 30);
-      stableHits = signature && signature === stableText ? stableHits + 1 : 1;
-      stableText = signature;
-      if (found.length && stableHits >= 2) {
+      const stable = consensusCandidates(recognitionHistory, found);
+      if (stable.length) {
         $('#ocr-state').textContent = 'NÚMERO Y EDICIÓN LEÍDOS';
         $('#camera-state').textContent = 'CARTA DETECTADA · REVISA LA COINCIDENCIA';
-        showMatches(found, 'Lectura estable del número. Confirma con la imagen de referencia.');
-      } else if (!found.length) {
+        const glareHint = quality.glare > .10 ? ' Hay reflejo fuerte; inclina un poco la carta y compara otra vez.' : '';
+        showMatches(stable, `Lectura estable en varias capturas. El puntaje ordena candidatos; no es una probabilidad.${glareHint}`);
+      } else if (found.length) {
+        $('#ocr-state').textContent = 'COMPARANDO NÚMERO, NOMBRE E IMAGEN';
+        $('#camera-state').textContent = 'MANTÉN LA CARTA QUIETA PARA CONFIRMAR';
+      } else {
         $('#ocr-state').textContent = 'BUSCANDO NÚMERO';
+        recognitionHistory.push([]);
+        if (recognitionHistory.length > 3) recognitionHistory.shift();
       }
       return;
     }
     $('#ocr-state').textContent = 'FOTO LEÍDA';
-    showMatches(found, found.length ? 'Compara el número, la edición y la imagen.' : 'No encontramos una coincidencia; busca manualmente abajo.');
+    const glareHint = quality.glare > .10 ? 'La foto tiene reflejos; revisa el número y las imágenes con cuidado.' : 'El puntaje combina el texto leído y la similitud de imagen cuando está disponible.';
+    showMatches(found, found.length ? glareHint : 'No encontramos una coincidencia; busca manualmente abajo.');
   } catch (error) {
     $('#ocr-state').textContent = 'OCR NO DISPONIBLE';
     message.textContent = 'No pudimos leer el número. Usa la búsqueda manual o intenta otra foto.';
@@ -209,8 +234,7 @@ async function startCamera() {
     $('#camera-state').textContent = 'CÁMARA ACTIVA';
     $('#camera-button').innerHTML = '<span>■</span> Detener cámara';
     message.textContent = 'Mantén la carta dentro del marco y el número inferior enfocado.';
-    stableText = '';
-    stableHits = 0;
+    recognitionHistory.length = 0;
     scanTimer = setInterval(() => { if (stream && !busy) readFrame(camera, true); }, 1600);
   } catch {
     message.textContent = 'No pudimos acceder a la cámara. Revisa el permiso o elige una foto.';
@@ -226,8 +250,7 @@ function stopCamera() {
   $('#camera-placeholder').hidden = false;
   $('#camera-state').textContent = 'CÁMARA DESACTIVADA';
   $('#camera-button').innerHTML = '<span>◉</span> Activar cámara';
-  stableText = '';
-  stableHits = 0;
+  recognitionHistory.length = 0;
 }
 
 async function scanFile(file) {
@@ -333,8 +356,8 @@ $('#upload-button').addEventListener('click', () => $('#photo-input').click());
 $('#photo-input').addEventListener('change', event => { const file = event.target.files[0]; event.target.value = ''; scanFile(file); });
 $('#manual-search').addEventListener('submit', event => {
   event.preventDefault();
-  const found = findMatches($('#card-search').value);
-  if (found.length) showMatches(found, `Coincidencias para “${$('#card-search').value.trim()}”. Confirma tu carta.`);
+  const found = rankCardCandidates(catalog, $('#card-search').value, { manual: true });
+  if (found.length) showMatches(found, `Coincidencias para “${$('#card-search').value.trim()}”. Confirma número, edición e imagen.`);
   else showMatches([], 'No encontramos esa carta en el catálogo incluido. Puedes ajustar la búsqueda.');
 });
 $('#collection-search').addEventListener('input', renderCollection);

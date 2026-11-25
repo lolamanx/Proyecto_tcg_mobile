@@ -37,7 +37,13 @@ public final class CardfolioActivity extends Activity {
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this)).build();
         web.setWebViewClient(new WebViewClient() {
             @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return assets.shouldInterceptRequest(request.getUrl());
+                Uri url = request.getUrl();
+                if ("appassets.androidplatform.net".equals(url.getHost()) &&
+                        "/api/reference-image".equals(url.getPath())) {
+                    android.webkit.WebResourceResponse image = ReferenceImageProxy.load(url);
+                    if (image != null) return image;
+                }
+                return assets.shouldInterceptRequest(url);
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri url = request.getUrl();

@@ -14,10 +14,11 @@ Abre `http://localhost:4173`. Para usar la cámara del teléfono, publica la app
 
 ## Flujo de uso
 
-1. En **Escanear**, activa la cámara o elige una foto. El escáner revisa el pie de la carta con OCR en intervalos cortos.
-2. La app busca el número y el nombre en el catálogo local, muestra referencias visuales y te pide confirmar edición, idioma y acabado.
-3. Guarda la copia en el dispositivo. Desde **Colección** puedes buscar cartas y ajustar cantidades.
-4. En la ficha puedes abrir TCGplayer, Cardmarket y TCGMatch Chile. Si anotas un precio CLP, se guarda junto a la carta con fuente y fecha.
+1. En **Escanear**, activa la cámara o elige una foto. El escáner lee por separado la franja del nombre y la del número de colección.
+2. Ordena candidatos por coincidencia de número/total, nombre y edición. Cuando hay imagen de referencia, compara también la ilustración y el aspecto general de la carta.
+3. En modo cámara, confirma candidatos que reaparecen en varias capturas. El puntaje ordena coincidencias; no representa una probabilidad calibrada y siempre debes confirmar la edición con la carta física.
+4. Guarda la copia en el dispositivo. Desde **Colección** puedes buscar cartas y ajustar cantidades.
+5. En la ficha puedes abrir TCGplayer, Cardmarket y TCGMatch Chile. Si anotas un precio CLP, se guarda junto a la carta con fuente y fecha.
 
 ## Privacidad y funcionamiento sin conexión
 
@@ -46,5 +47,6 @@ El pequeño catálogo sigue el formato de Pokémon TCG Data y las imágenes de r
 
 - `index.html`, `style.css`, `app.js`: interfaz y flujo de captura.
 - `catalog.json`: catálogo local (ahora, de demostración).
+- `recognition.mjs`: extracción de señales de texto, calidad de captura, similitud visual y consenso entre fotogramas.
 - `sw.js`, `manifest.webmanifest`: instalación PWA y shell sin conexión.
 - `server.mjs`: servidor estático local sin dependencias externas.
