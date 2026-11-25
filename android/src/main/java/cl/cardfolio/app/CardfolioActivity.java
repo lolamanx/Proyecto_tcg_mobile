@@ -43,6 +43,12 @@ public final class CardfolioActivity extends Activity {
                     android.webkit.WebResourceResponse image = ReferenceImageProxy.load(url);
                     if (image != null) return image;
                 }
+                if ("appassets.androidplatform.net".equals(url.getHost()) && url.getPath().endsWith(".mjs")) {
+                    try {
+                        return new android.webkit.WebResourceResponse("text/javascript", "UTF-8",
+                                getAssets().open(url.getPath().substring(1)));
+                    } catch (Exception ignored) { }
+                }
                 return assets.shouldInterceptRequest(url);
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
