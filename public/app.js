@@ -188,20 +188,25 @@ function showMatches(results, note = '') {
 async function loadOcr() {
   if (ocrWorker) return ocrWorker;
   $('#ocr-state').textContent = 'CARGANDO OCR';
+  const localOcr = location.hostname === 'appassets.androidplatform.net' ||
+    (await fetch('/ocr/ready.json').then(r=>r.ok).catch(()=>false));
   if (!window.Tesseract) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      script.src = localOcr ? '/ocr/tesseract.min.js' : 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
       script.onload = resolve;
       script.onerror = reject;
       document.head.append(script);
     });
   }
   ocrWorker = await window.Tesseract.createWorker('eng+jpn', 1, {
+    ...(localOcr ? {workerPath:'/ocr/worker.min.js', corePath:'/ocr/tesseract-core-lstm.wasm.js',
+      langPath:'/ocr', gzip:false, workerBlobURL:false} : {}),
     logger: event => {
       if (event.status === 'recognizing text') $('#ocr-state').textContent = `LEYENDO ${Math.round(event.progress * 100)}%`;
     }
   });
+  await ocrWorker.setParameters?.({tessedit_pageseg_mode:'11'});
   return ocrWorker;
 }
 
@@ -209,7 +214,7 @@ function makeOcrSheet(source, quality) {
   const canvas = document.createElement('canvas');
   const width = source.videoWidth || source.naturalWidth || source.width;
   const height = source.videoHeight || source.naturalHeight || source.height;
-  canvas.width = Math.max(1, Math.min(1100, width));
+  canvas.width = Math.max(1, Math.min(1400, Math.max(900, width)));
   const top = Math.round(height * .02);
   const topHeight = Math.round(height * .20);
   const bottom = Math.round(height * .64);

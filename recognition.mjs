@@ -4,7 +4,7 @@ const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
 function numericHypothesis(token) {
   const upper = token.toUpperCase();
-  if (!/^[0-9OQDIILSZGB]+$/.test(upper)) return { value: cleanNumber(upper), penalty: /\d/.test(upper) ? 1 : 0 };
+  if (!/^[0-9OQDIILSZGB]+$/.test(upper)) return { value: cleanNumber(upper), penalty: /\d/.test(upper) || upper === 'XY-P' ? 1 : 0 };
   const swaps = { O: '0', Q: '0', D: '0', I: '1', L: '1', S: '5', Z: '2', G: '6', B: '8' };
   let corrections = 0;
   const value = cleanNumber([...upper].map(char => {
@@ -17,7 +17,7 @@ function numericHypothesis(token) {
 
 function parsePairs(text) {
   const pairs = [];
-  const pattern = /([A-Z0-9]{1,6})\s*[\/|\\]\s*([A-Z0-9]{1,5})/gi;
+  const pattern = /([A-Z0-9]{1,6})\s*[\/|\\]\s*(XY-P|[A-Z0-9]{1,5})/gi;
   for (const match of String(text ?? '').toUpperCase().matchAll(pattern)) {
     const number = numericHypothesis(match[1]);
     const total = numericHypothesis(match[2]);
@@ -86,6 +86,9 @@ export function rankCardCandidates(catalog, text, { manual = false, ocrConfidenc
   const names = new Map(), sets = new Map();
   const tokens = new Set(input.split(/[^a-z0-9]+/).map(cleanNumber));
   const results = [];
+  const reliablePairs = pairs.filter(p=>p.weight===1 && p.number && p.total);
+  const hasCatalogPair = reliablePairs.length > 0 && catalog.cards.some(c=>reliablePairs.some(p=>
+    cleanNumber(c.number)===p.number && cleanNumber(c.total)===p.total));
   for (const card of catalog.cards) {
     const number = cleanNumber(card.number);
     const total = cleanNumber(card.total);
@@ -106,7 +109,7 @@ export function rankCardCandidates(catalog, text, { manual = false, ocrConfidenc
     if (name >= .72) { score += .31 * name; signals.push(name === 1 ? 'nombre' : 'nombre aproximado'); }
     if (set >= .78) { score += .13 * set; signals.push('edición'); }
     if (codeRead && (pairQuality || numberMentioned || name >= .72)) { score += card.printedCode ? .22 : .08; signals.push('código de edición'); }
-    if (pairs.some(pair => pair.weight === 1) && !pairQuality) score *= .35;
+    if (hasCatalogPair && !pairQuality) score *= .35;
     if (!score) continue;
     score = clamp(score * ocrFactor * imageFactor);
     results.push({ card, score, signals, visualScore: null });

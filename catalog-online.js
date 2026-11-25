@@ -10,7 +10,9 @@ function addJapanesePromos(cards) {
 const root = 'https://raw.githubusercontent.com/lolamanx/Proyecto_tcg_mobile/main/data/90f27d0/';
 export async function loadCatalog() {
   async function read(path) {
-    const response = await fetch(root + path);
+    let response;
+    try { response = await fetch('/data/90f27d0/' + path); } catch {}
+    if (!response?.ok) response = await fetch(root + path);
     if (!response.ok) throw new Error('Catálogo temporalmente inaccesible');
     return response.json();
   }

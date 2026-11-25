@@ -27,8 +27,12 @@ jobs:
       - name: Read a sample scan from each edition
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y tesseract-ocr python3-pil
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-jpn python3-pil
           OMP_THREAD_LIMIT=1 /usr/bin/python3 scripts/audit-editions.py
+      - name: Bundle offline scanner
+        run: |
+          bash scripts/prepare-scanner.sh
+          ln -s public/ocr ocr
       - name: Verify pending review flow
         run: |
           python3 -m venv /tmp/cardfolio-review
@@ -36,6 +40,7 @@ jobs:
           node server.mjs &
           trap 'kill $!' EXIT
           /tmp/cardfolio-review/bin/python scripts/check-pending.py
+          /tmp/cardfolio-review/bin/python scripts/check-scanner.py
       - name: Compile APK
         working-directory: android
         run: |
