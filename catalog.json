@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "note": "Catálogo pequeño de demostración. La app está preparada para sustituir este archivo por el catálogo completo generado desde datos abiertos.",
+  "cards": [
+    { "id": "base1-58", "name": "Pikachu", "setId": "base1", "setName": "Base Set", "number": "58", "total": "102", "image": "https://images.pokemontcg.io/base1/58.png", "finishes": ["normal"] },
+    { "id": "base1-4", "name": "Charizard", "setId": "base1", "setName": "Base Set", "number": "4", "total": "102", "image": "https://images.pokemontcg.io/base1/4.png", "finishes": ["holo"] },
+    { "id": "base1-44", "name": "Bulbasaur", "setId": "base1", "setName": "Base Set", "number": "44", "total": "102", "image": "https://images.pokemontcg.io/base1/44.png", "finishes": ["normal"] },
+    { "id": "base1-63", "name": "Squirtle", "setId": "base1", "setName": "Base Set", "number": "63", "total": "102", "image": "https://images.pokemontcg.io/base1/63.png", "finishes": ["normal"] },
+    { "id": "base1-15", "name": "Venusaur", "setId": "base1", "setName": "Base Set", "number": "15", "total": "102", "image": "https://images.pokemontcg.io/base1/15.png", "finishes": ["holo"] },
+    { "id": "base1-2", "name": "Blastoise", "setId": "base1", "setName": "Base Set", "number": "2", "total": "102", "image": "https://images.pokemontcg.io/base1/2.png", "finishes": ["holo"] }
+  ]
+}

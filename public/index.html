@@ -2,62 +2,90 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#142d24">
-  <meta name="description" content="Organiza tu colección de cartas Pokémon y consulta sus referencias de mercado.">
-  <title>Cardfolio · Colección Pokémon TCG</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Escanea cartas Pokémon TCG y lleva tu colección en un solo lugar.">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icon.png">
-  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/app.js"></script>
+  <title>Cardfolio · Pokémon TCG</title>
 </head>
 <body>
-<div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="#inicio"><span class="brand-mark" aria-hidden="true">▱</span>Cardfolio<span>.</span></a>
-    <nav aria-label="Menú principal">
-      <a href="#inicio" data-page="inicio"><span aria-hidden="true">⌂</span>Inicio</a>
-      <a href="#coleccion" data-page="coleccion"><span aria-hidden="true">▤</span>Mi colección</a>
-      <a href="#mercado" data-page="mercado"><span aria-hidden="true">⌕</span>Consultar carta</a>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#scan" aria-label="Cardfolio, inicio">
+        <span class="brand-mark">C</span>
+        <span>cardfolio<small>POKÉMON TCG</small></span>
+      </a>
+      <button class="icon-button" id="settings-button" aria-label="Información de la app" title="Información">i</button>
+    </header>
+
+    <section class="page active" id="scan-page" aria-labelledby="scan-title">
+      <div class="page-heading">
+        <div><p class="eyebrow">ESCÁNER</p><h1 id="scan-title">Identifica tu carta</h1></div>
+        <span class="live-pill"><i></i> EN VIVO</span>
+      </div>
+
+      <div class="scanner-card">
+        <div class="camera-stage" id="camera-stage">
+          <video id="camera-video" autoplay muted playsinline></video>
+          <canvas id="camera-frame" hidden></canvas>
+          <div class="camera-shade"></div>
+          <div class="scan-instructions" id="camera-placeholder">
+            <span class="camera-symbol">▧</span>
+            <strong>Coloca una carta dentro del marco</strong>
+            <span>La lectura se procesa en tu dispositivo</span>
+          </div>
+          <div class="scan-frame" aria-hidden="true"><span></span><span></span><span></span><span></span><b></b></div>
+          <div class="camera-hud"><span id="camera-state">CÁMARA DESACTIVADA</span><span>·</span><span id="ocr-state">LISTA PARA ESCANEAR</span></div>
+          <div class="detected-badge" id="detected-badge" hidden><span>✓</span><span><small>COINCIDENCIA</small><b id="detected-name">Carta detectada</b></span></div>
+        </div>
+        <div class="scan-controls">
+          <button class="button button-primary button-wide" id="camera-button"><span>◉</span> Activar cámara</button>
+          <button class="button button-outline button-wide" id="upload-button"><span>▧</span> Elegir una foto</button>
+          <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+        </div>
+        <form class="manual-search" id="manual-search">
+          <label for="card-search">O busca por nombre o número</label>
+          <div><input id="card-search" type="search" placeholder="Pikachu, 58 o 58/102" autocomplete="off"><button class="button button-dark" aria-label="Buscar">⌕</button></div>
+        </form>
+        <div class="scan-tip"><span>✦</span><p><b>Consejo:</b> buena luz y el número inferior enfocado ayudan a distinguir la edición.</p></div>
+      </div>
+
+      <section class="match-section" aria-labelledby="match-title">
+        <div class="section-title"><div><p class="eyebrow">CONFIRMA ANTES DE GUARDAR</p><h2 id="match-title">Coincidencias</h2></div><span class="match-count" id="match-count">0</span></div>
+        <div class="status-message" id="scan-message" role="status">Activa la cámara o elige una foto para comenzar.</div>
+        <div class="match-list" id="match-list"></div>
+      </section>
+    </section>
+
+    <section class="page" id="collection-page" aria-labelledby="collection-title" hidden>
+      <div class="page-heading">
+        <div><p class="eyebrow">TU ÁLBUM</p><h1 id="collection-title">Mi colección</h1></div>
+        <span class="collection-total"><b id="collection-total">0</b><small>cartas</small></span>
+      </div>
+      <label class="search-box"><span>⌕</span><input id="collection-search" type="search" placeholder="Buscar nombre, edición o número" autocomplete="off"></label>
+      <div class="collection-summary"><div><span class="summary-icon">▤</span><span><b id="unique-count">0</b><small>versiones guardadas</small></span></div><div><span class="summary-icon mint">◷</span><span><b id="value-count">0</b><small>precios locales</small></span></div></div>
+      <div class="collection-list" id="collection-list"></div>
+      <div class="empty-collection" id="empty-collection"><span>▱</span><h2>Tu álbum comienza aquí</h2><p>Escanea una carta y guárdala para verla en esta lista.</p><button class="button button-primary" data-go-scan>Escanear primera carta</button></div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item selected" data-page="scan"><span class="nav-icon">⌗</span><span>Escanear</span></button>
+      <button class="nav-item" data-page="collection"><span class="nav-icon">▤</span><span>Colección</span><span class="nav-dot" id="nav-count" hidden></span></button>
     </nav>
-    <div class="side-note"><span aria-hidden="true">◇</span><div><strong>Pokémon TCG</strong><small>Tu álbum digital</small></div></div>
-  </aside>
-  <main id="main">
-    <header class="topbar"><span>ALBUM PERSONAL</span><span class="device"><i></i> Guardado en este dispositivo</span><button class="button ghost install-app" type="button">Instalar app</button></header>
-    <div id="view"></div>
   </main>
-</div>
-<dialog id="install-dialog">
-  <h2>Instalar Cardfolio</h2>
-  <p><strong>Android</strong> · En Chrome, abre el menú ⋮ y elige «Instalar aplicación» o «Añadir a pantalla de inicio».</p>
-  <p><strong>iPhone</strong> · En Safari, toca Compartir y elige «Agregar a pantalla de inicio».</p>
-  <form method="dialog"><button class="button secondary">Cerrar</button></form>
-</dialog>
-<dialog id="camera-dialog">
-  <h2>Encuadra tu carta</h2>
-  <p class="camera-status" role="status"></p>
-  <div class="camera-view"><video playsinline muted></video><div class="camera-guide" aria-hidden="true"></div></div>
-  <div class="row"><button class="button primary shutter" type="button">Capturar</button><form method="dialog"><button class="button secondary">Cerrar</button></form></div>
-</dialog>
-<template id="finder">
-  <div class="finder">
-    <div class="finder-head"><h2>Identifica la carta</h2><p>Usa una foto o busca por nombre, edición y número.</p></div>
-    <div class="photo-options">
-      <button class="button primary guided-camera" type="button">Tomar foto</button><input hidden type="file" class="camera" accept="image/*" capture="environment">
-      <label class="button secondary">Subir foto<input type="file" class="upload" accept="image/*"></label>
-    </div>
-    <div class="scan-result" hidden><img alt="Tu foto de la carta"><p class="scan-status" role="status"></p></div>
-    <button class="button secondary foil-camera" type="button" hidden>Comprobar reflejo</button><p class="foil-status" role="status" hidden></p>
-    <form class="search-form">
-      <label>Nombre o número<input class="query" placeholder="Ej. Umbreon VMAX o 215/203" autocomplete="off"></label>
-      <label>Edición<select class="sets"><option value="">Todas las ediciones</option></select></label>
-      <button class="button primary">Buscar</button>
-    </form>
-    <p class="catalog-status" role="status" hidden></p>
-    <div class="results"></div>
-    <div class="selection"></div>
-  </div>
-</template>
+
+  <dialog class="card-dialog" id="card-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Cerrar">×</button></form>
+    <div class="dialog-content" id="dialog-content"></div>
+  </dialog>
+  <dialog class="info-dialog" id="info-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Cerrar">×</button></form>
+    <p class="eyebrow">CARD FOLIO · PRIMERA VERSIÓN</p><h2>Tu colección, en tu teléfono</h2>
+    <p>La colección y los precios que anotes quedan guardados en este dispositivo. La lectura OCR se realiza en el navegador. Para reconocer todas las cartas, sustituiremos el pequeño catálogo de demostración por un catálogo abierto completo.</p>
+    <p>El acabado holográfico debe confirmarse visualmente; una foto por sí sola no siempre permite distinguir holo, reverse y normal.</p>
+  </dialog>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

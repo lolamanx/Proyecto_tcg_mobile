@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Escanea cartas Pokémon TCG y lleva tu colección en un solo lugar.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <title>Cardfolio · Pokémon TCG</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#scan" aria-label="Cardfolio, inicio">
+        <span class="brand-mark">C</span>
+        <span>cardfolio<small>POKÉMON TCG</small></span>
+      </a>
+      <button class="icon-button" id="settings-button" aria-label="Información de la app" title="Información">i</button>
+    </header>
+
+    <section class="page active" id="scan-page" aria-labelledby="scan-title">
+      <div class="page-heading">
+        <div><p class="eyebrow">ESCÁNER</p><h1 id="scan-title">Identifica tu carta</h1></div>
+        <span class="live-pill"><i></i> EN VIVO</span>
+      </div>
+
+      <div class="scanner-card">
+        <div class="camera-stage" id="camera-stage">
+          <video id="camera-video" autoplay muted playsinline></video>
+          <canvas id="camera-frame" hidden></canvas>
+          <div class="camera-shade"></div>
+          <div class="scan-instructions" id="camera-placeholder">
+            <span class="camera-symbol">▧</span>
+            <strong>Coloca una carta dentro del marco</strong>
+            <span>La lectura se procesa en tu dispositivo</span>
+          </div>
+          <div class="scan-frame" aria-hidden="true"><span></span><span></span><span></span><span></span><b></b></div>
+          <div class="camera-hud"><span id="camera-state">CÁMARA DESACTIVADA</span><span>·</span><span id="ocr-state">LISTA PARA ESCANEAR</span></div>
+          <div class="detected-badge" id="detected-badge" hidden><span>✓</span><span><small>COINCIDENCIA</small><b id="detected-name">Carta detectada</b></span></div>
+        </div>
+        <div class="scan-controls">
+          <button class="button button-primary button-wide" id="camera-button"><span>◉</span> Activar cámara</button>
+          <button class="button button-outline button-wide" id="upload-button"><span>▧</span> Elegir una foto</button>
+          <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+        </div>
+        <form class="manual-search" id="manual-search">
+          <label for="card-search">O busca por nombre o número</label>
+          <div><input id="card-search" type="search" placeholder="Pikachu, 58 o 58/102" autocomplete="off"><button class="button button-dark" aria-label="Buscar">⌕</button></div>
+        </form>
+        <div class="scan-tip"><span>✦</span><p><b>Consejo:</b> buena luz y el número inferior enfocado ayudan a distinguir la edición.</p></div>
+      </div>
+
+      <section class="match-section" aria-labelledby="match-title">
+        <div class="section-title"><div><p class="eyebrow">CONFIRMA ANTES DE GUARDAR</p><h2 id="match-title">Coincidencias</h2></div><span class="match-count" id="match-count">0</span></div>
+        <div class="status-message" id="scan-message" role="status">Activa la cámara o elige una foto para comenzar.</div>
+        <div class="match-list" id="match-list"></div>
+      </section>
+    </section>
+
+    <section class="page" id="collection-page" aria-labelledby="collection-title" hidden>
+      <div class="page-heading">
+        <div><p class="eyebrow">TU ÁLBUM</p><h1 id="collection-title">Mi colección</h1></div>
+        <span class="collection-total"><b id="collection-total">0</b><small>cartas</small></span>
+      </div>
+      <label class="search-box"><span>⌕</span><input id="collection-search" type="search" placeholder="Buscar nombre, edición o número" autocomplete="off"></label>
+      <div class="collection-summary"><div><span class="summary-icon">▤</span><span><b id="unique-count">0</b><small>versiones guardadas</small></span></div><div><span class="summary-icon mint">◷</span><span><b id="value-count">0</b><small>precios locales</small></span></div></div>
+      <div class="collection-list" id="collection-list"></div>
+      <div class="empty-collection" id="empty-collection"><span>▱</span><h2>Tu álbum comienza aquí</h2><p>Escanea una carta y guárdala para verla en esta lista.</p><button class="button button-primary" data-go-scan>Escanear primera carta</button></div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item selected" data-page="scan"><span class="nav-icon">⌗</span><span>Escanear</span></button>
+      <button class="nav-item" data-page="collection"><span class="nav-icon">▤</span><span>Colección</span><span class="nav-dot" id="nav-count" hidden></span></button>
+    </nav>
+  </main>
+
+  <dialog class="card-dialog" id="card-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Cerrar">×</button></form>
+    <div class="dialog-content" id="dialog-content"></div>
+  </dialog>
+  <dialog class="info-dialog" id="info-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Cerrar">×</button></form>
+    <p class="eyebrow">CARD FOLIO · PRIMERA VERSIÓN</p><h2>Tu colección, en tu teléfono</h2>
+    <p>La colección y los precios que anotes quedan guardados en este dispositivo. La lectura OCR se realiza en el navegador. Para reconocer todas las cartas, sustituiremos el pequeño catálogo de demostración por un catálogo abierto completo.</p>
+    <p>El acabado holográfico debe confirmarse visualmente; una foto por sí sola no siempre permite distinguir holo, reverse y normal.</p>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

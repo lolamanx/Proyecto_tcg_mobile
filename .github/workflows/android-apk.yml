@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
-      - name: Build debug APK
+      - name: Compile APK
         working-directory: android
         run: |
           chmod +x gradlew
@@ -34,12 +34,12 @@ jobs:
           path: android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Publish test APK release
+      - name: Publish test APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-preview-${{ github.run_number }}
           name: Cardfolio APK de prueba #${{ github.run_number }}
-          body: "APK de prueba compilada automáticamente desde ${{ github.sha }}."
+          body: "APK de prueba generado desde ${{ github.sha }}."
           prerelease: true
           make_latest: false
           files: android/build/outputs/apk/debug/*.apk
