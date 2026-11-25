@@ -45,6 +45,17 @@
           <button class="button button-outline button-wide" id="upload-button"><span>▧</span> Elegir una foto</button>
           <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
         </div>
+        <label for="catalog-source">Catálogo para escanear y buscar</label>
+        <select id="catalog-source" disabled>
+          <option value="archive">Inglés · archivo de 177 ediciones</option>
+          <option value="es">Español · TCGdex en línea</option>
+          <option value="en">Inglés · TCGdex en línea</option>
+          <option value="ja">Japonés · TCGdex en línea</option>
+          <option value="fr">Francés · TCGdex en línea</option>
+          <option value="de">Alemán · TCGdex en línea</option>
+          <option value="it">Italiano · TCGdex en línea</option>
+          <option value="pt">Portugués · TCGdex en línea</option>
+        </select>
         <form class="manual-search" id="manual-search">
           <label for="card-search">O busca por nombre o número</label>
           <div><input id="card-search" type="search" placeholder="Pikachu, 58 o 58/102" autocomplete="off"><button class="button button-dark" aria-label="Buscar">⌕</button></div>

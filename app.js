@@ -1,4 +1,4 @@
-import { loadCatalog } from './catalog-online.js';
+import { loadCatalog, loadLiveCatalog } from './catalog-online.js';
 import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
 
 const languages = { es: 'Español', en: 'Inglés', ja: 'Japonés', pt: 'Portugués', fr: 'Francés', de: 'Alemán', it: 'Italiano' };
@@ -66,6 +66,7 @@ function referenceURL(card) {
 }
 
 function loadReferenceCanvas(card) {
+  if (!card.image) return Promise.reject(new Error('Sin referencia'));
   if (referenceCanvasCache.has(card.id)) return referenceCanvasCache.get(card.id);
   const request = new Promise((resolve, reject) => {
     const image = new Image();
@@ -276,7 +277,7 @@ function openCard(card) {
   const content = $('#dialog-content');
   const marketSearch = encodeURIComponent(`${card.name} ${card.number}`);
   content.innerHTML = `<div class="dialog-heading"><img src="${html(card.image)}" alt="${html(card.name)}"><div><p class="eyebrow">${html(card.setName)}</p><h2>${html(card.name)}</h2><p class="dialog-number">Carta ${html(card.number)}/${html(card.total)}</p></div></div>
-    <div class="confirm-strip"><span>✓</span><p><b>Confirma con tu copia</b><small>Compara ilustración, número y símbolo de edición.</small></p></div>
+    <div class="confirm-strip"><span>✓</span><p><b>Confirma con tu copia</b><small>Compara ilustración, número y símbolo de edición.</small>${card.symbol ? `<img width="32" alt="Símbolo de la edición" src="${html(card.symbol)}">` : '' }</p></div>
     <div class="market-links"><a href="https://www.tcgplayer.com/search/pokemon/product?q=${marketSearch}" rel="noopener noreferrer">TCGplayer ↗</a><a href="https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${marketSearch}" rel="noopener noreferrer">Cardmarket ↗</a><a href="https://tcgmatch.cl/" rel="noopener noreferrer">TCGMatch Chile ↗</a></div>
     <form id="card-form" class="card-form">
       <label>Idioma<select name="language" required><option value="">Elige idioma</option>${Object.entries(languages).map(([key, value]) => `<option value="${key}">${value}</option>`).join('')}</select></label>
@@ -313,6 +314,7 @@ function openCard(card) {
     $('#form-feedback').textContent = `${card.name} quedó en tu colección.`;
     setTimeout(() => cardDialog.close(), 600);
   });
+  if (card.language) content.querySelector('[name=language]').value = card.language;
   cardDialog.showModal();
 }
 
@@ -376,5 +378,25 @@ try {
 } catch {
   message.textContent = 'No se pudo abrir el catálogo local. Revisa la conexión y recarga.';
 }
+const sourcePicker = $('#catalog-source');
+sourcePicker.disabled = false;
+sourcePicker.addEventListener('change', async () => {
+  const previous = sourcePicker.dataset.active || 'archive';
+  const selected = sourcePicker.value;
+  sourcePicker.disabled = true;
+  stopCamera();
+  message.textContent = 'Consultando el catálogo…';
+  try {
+    const next = selected === 'archive' ? await loadCatalog() : await loadLiveCatalog(selected);
+    catalog = next;
+    sourcePicker.dataset.active = selected;
+    showMatches([], next.editions + ' ediciones · ' + next.cards.length + ' cartas disponibles.');
+  } catch {
+    sourcePicker.value = previous;
+    message.textContent = 'No se pudo cargar ese catálogo. Sigue disponible el anterior.';
+  } finally {
+    sourcePicker.disabled = false;
+  }
+});
 renderCollection();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

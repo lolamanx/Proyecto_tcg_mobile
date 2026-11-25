@@ -105,7 +105,7 @@ export function rankCardCandidates(catalog, text, { manual = false, ocrConfidenc
     else if (numberMentioned) { score += .28; signals.push('número'); }
     if (name >= .72) { score += .31 * name; signals.push(name === 1 ? 'nombre' : 'nombre aproximado'); }
     if (set >= .78) { score += .13 * set; signals.push('edición'); }
-    if (codeRead && (pairQuality || numberMentioned || name >= .72)) { score += .22; signals.push('código de edición'); }
+    if (codeRead && (pairQuality || numberMentioned || name >= .72)) { score += card.printedCode ? .22 : .08; signals.push('código de edición'); }
     if (pairs.some(pair => pair.weight === 1) && !pairQuality) score *= .35;
     if (!score) continue;
     score = clamp(score * ocrFactor * imageFactor);

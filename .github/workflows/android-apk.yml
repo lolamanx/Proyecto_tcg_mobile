@@ -22,6 +22,11 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
+      - name: Read a sample scan from each edition
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr python3-pil
+          OMP_THREAD_LIMIT=1 /usr/bin/python3 scripts/audit-editions.py
       - name: Compile APK
         working-directory: android
         run: |
@@ -34,11 +39,6 @@ jobs:
           path: android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Read a sample scan from each edition
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y tesseract-ocr python3-pil
-          OMP_THREAD_LIMIT=1 /usr/bin/python3 scripts/audit-editions.py
       - name: Publish test APK
         uses: softprops/action-gh-release@v2
         with:
