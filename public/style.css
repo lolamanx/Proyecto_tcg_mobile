@@ -6,3 +6,8 @@
 @media(min-width:680px){body{padding:20px 0}.app-shell{min-height:calc(100svh - 40px);border:1px solid #e5e8e1;border-radius:26px;overflow:hidden}.bottom-nav{bottom:20px;border-radius:0 0 26px 26px}.page{padding:27px 25px 34px}.camera-stage{height:360px}.card-dialog,.info-dialog{bottom:20px;border-radius:22px}}
 @media(max-width:370px){.page{padding-left:14px;padding-right:14px}.topbar{padding:0 16px}.scan-controls{gap:6px}.button{padding:0 8px;font-size:11px}.camera-stage{height:270px}.match-copy b{font-size:11px}.bottom-nav{gap:45px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+
+.camera-stage{height:clamp(300px,100vw,480px)}
+.scan-frame{height:83%;width:auto;max-width:90%;aspect-ratio:63/88;top:47%;border:1px solid #d6f7bc99}
+.scan-frame b{top:auto;bottom:7%;left:5%;right:5%}
+.camera-stage.camera-on .scan-frame{box-shadow:0 0 0 999px #09132165}

@@ -1,8 +1,9 @@
+import {printedLanguage,bestOfBurst} from './auto-scan.js';
 import {captureExample, suggestions, remember, exclusive, stampHint} from './scan-help.js';
 import { loadCatalog, loadLiveCatalog } from './catalog-online.js';
 import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
 
-const languages = { es: 'Español', en: 'Inglés', ja: 'Japonés', pt: 'Portugués', fr: 'Francés', de: 'Alemán', it: 'Italiano' };
+const languages = { und:'Sin identificar', es: 'Español', en: 'Inglés', ja: 'Japonés', pt: 'Portugués', fr: 'Francés', de: 'Alemán', it: 'Italiano' };
 const finishes = { normal: 'Normal', holo: 'Holográfica', reverse: 'Reverse holo', other: 'Otro acabado' };
 const STORAGE_KEY = 'cardfolio.collection.v1';
 const catalogRequest = loadCatalog().catch(async () => {
@@ -18,6 +19,12 @@ let ocrWorker;
 const recognitionHistory = [];
 const referenceCanvasCache = new Map();
 let lastScan;
+let opening = false;
+let paused = false;
+const autoCatalogs = new Map();
+function eligible() {
+  return !paused && !document.hidden && !$('#scan-page').hidden && !document.querySelector('dialog[open]');
+}
 let scanGeneration = 0;
 let currentPhoto = '';
 let detectedCards = [];
@@ -93,6 +100,7 @@ function loadReferenceCanvas(card) {
     referenceCanvasCache.delete(card.id);
     throw error;
   });
+  if (referenceCanvasCache.size >= 60) referenceCanvasCache.delete(referenceCanvasCache.keys().next().value);
   referenceCanvasCache.set(card.id, request);
   return request;
 }
@@ -140,7 +148,7 @@ async function loadOcr() {
       document.head.append(script);
     });
   }
-  ocrWorker = await window.Tesseract.createWorker('eng', 1, {
+  ocrWorker = await window.Tesseract.createWorker('eng+jpn', 1, {
     logger: event => {
       if (event.status === 'recognizing text') $('#ocr-state').textContent = `LEYENDO ${Math.round(event.progress * 100)}%`;
     }
@@ -148,21 +156,21 @@ async function loadOcr() {
   return ocrWorker;
 }
 
-function makeOcrSheet(source) {
+function makeOcrSheet(source, quality) {
   const canvas = document.createElement('canvas');
   const width = source.videoWidth || source.naturalWidth || source.width;
   const height = source.videoHeight || source.naturalHeight || source.height;
   canvas.width = Math.max(1, Math.min(1100, width));
   const top = Math.round(height * .02);
   const topHeight = Math.round(height * .20);
-  const bottom = Math.round(height * .80);
-  const bottomHeight = Math.round(height * .19);
+  const bottom = Math.round(height * .64);
+  const bottomHeight = Math.round(height * .35);
   const bandHeight = Math.round(canvas.width * topHeight / width);
   const footerHeight = Math.round(canvas.width * bottomHeight / width);
   const gap = Math.max(16, Math.round(canvas.width * .035));
   canvas.height = bandHeight + footerHeight + gap;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.filter = 'grayscale(1) contrast(1.38) brightness(1.04)';
+  ctx.filter = quality.contrast < 35 ? 'grayscale(1) blur(0.45px) contrast(1.65)' : 'grayscale(1) contrast(1.25)';
   ctx.drawImage(source, 0, top, width, topHeight, 0, 0, canvas.width, bandHeight);
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, bandHeight, canvas.width, gap);
@@ -185,25 +193,39 @@ function cropLiveCard(video) {
   return canvas;
 }
 
-async function readFrame(source, live = false) {
+async function readFrame(source, live = false, sampledQuality) {
   if (busy) return;
   busy = true;
   const generation = scanGeneration;
   try {
-    const cardArea = live ? cropLiveCard(source) : source;
+    const cardArea = source;
     lastScan = captureExample(cardArea);
-    const quality = assessCardImage(cardArea);
+    const quality = sampledQuality || assessCardImage(cardArea);
     const worker = await loadOcr();
-    const result = await worker.recognize(makeOcrSheet(cardArea));
+    const result = await worker.recognize(makeOcrSheet(cardArea, quality));
     const text = result.data.text || '';
-    let found = rankCardCandidates(catalog, text, {
+    if (generation !== scanGeneration) return;
+    const language = printedLanguage(text);
+    let searchCatalog = catalog;
+    if (language && language !== 'en' && $('#catalog-source').value === 'archive') {
+      if (!autoCatalogs.has(language)) {
+        autoCatalogs.set(language, loadLiveCatalog(language).catch(() => { autoCatalogs.delete(language); return null; }));
+      }
+      searchCatalog = (await autoCatalogs.get(language)) || catalog;
+    }
+    if (generation !== scanGeneration) return;
+    let found = rankCardCandidates(searchCatalog, text, {
       ocrConfidence: result.data.confidence,
       qualityPenalty: quality.penalty,
     });
-    if (found.length) found = await rankWithCardImage(cardArea, found, loadReferenceCanvas);
+    if (found.length) {
+      const compared = rankWithCardImage(cardArea, found, loadReferenceCanvas);
+      found = live ? await Promise.race([compared, new Promise(resolve => setTimeout(resolve, 400, found))]) : await compared;
+    }
     if (generation !== scanGeneration) return;
-    const hints = suggestions(lastScan, catalog, found[0]?.score >= .5 ? '' : text, $('#catalog-source').value);
+    const hints = suggestions(lastScan, searchCatalog, found[0]?.score >= .5 ? '' : text, $('#catalog-source').value);
     found = [...found, ...hints].sort((a,b)=>b.score-a.score).filter((r,i,all)=>all.findIndex(v=>v.card.id===r.card.id)===i).slice(0,8);
+    if (language) found = found.map(r=>({...r,card:{...r.card,scanLanguage:language}}));
     if (!found.length || found[0].score < .5) {
       recognitionHistory.length = 0;
       showMatches(found.slice(0,5), found.length ? 'Posibles cartas. Compara la edición o ingresa los datos manualmente.' : 'Sin coincidencias. Busca por nombre o ingresa la carta manualmente.');
@@ -241,18 +263,22 @@ async function readFrame(source, live = false) {
 }
 
 async function startCamera() {
-  if (stream) {
-    stopCamera();
-    return;
-  }
+  if (opening || stream || !eligible()) return;
+  const generation = scanGeneration;
   if (!navigator.mediaDevices?.getUserMedia) {
     message.textContent = 'El navegador requiere una conexión segura (HTTPS) para abrir la cámara.';
     return;
   }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } } });
+    opening = true;
+    const acquired = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } } });
+    if (generation !== scanGeneration || !eligible()) { acquired.getTracks().forEach(t=>t.stop()); return; }
+    stream = acquired;
+    const track = stream.getVideoTracks()[0];
+    if (track.getCapabilities?.().focusMode?.includes('continuous')) track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
     camera.srcObject = stream;
     await camera.play();
+    if (generation !== scanGeneration) return;
     stage.style.removeProperty('--photo-url');
     stage.classList.add('camera-on');
     stage.classList.remove('photo-on');
@@ -261,10 +287,20 @@ async function startCamera() {
     $('#camera-button').innerHTML = '<span>■</span> Detener cámara';
     message.textContent = 'Mantén la carta dentro del marco y el número inferior enfocado.';
     recognitionHistory.length = 0;
-    scanTimer = setInterval(() => { if (stream && !busy) readFrame(camera, true); }, 1600);
+    const sample = bestOfBurst(camera,cropLiveCard,assessCardImage,({canvas,quality})=>{
+      if (quality.contrast<10 || quality.dark>.87 || quality.glare>.85) {
+        $('#camera-state').textContent='BUSCANDO DETALLE · AJUSTA EL ÁNGULO';
+        return;
+      }
+      if (!busy && catalog.cards.length) readFrame(canvas,true,quality);
+    });
+    scanTimer = setInterval(()=>{if(stream && !busy) sample();},110);
   } catch {
+    if(generation !== scanGeneration) return;
+    paused=true;
+    stopCamera();
     message.textContent = 'No pudimos acceder a la cámara. Revisa el permiso o elige una foto.';
-  }
+  } finally { opening = false; if (generation !== scanGeneration && eligible() && !stream) startCamera(); }
 }
 
 function stopCamera() {
@@ -282,11 +318,18 @@ function stopCamera() {
 
 async function scanFile(file) {
   if (!file) return;
+  paused=true;
   stopCamera();
   lastScan = null;
   currentPhoto = URL.createObjectURL(file);
   const preview = new Image();
-  preview.onload = () => readFrame(preview, false);
+  const generation = scanGeneration;
+  const readPhoto = () => {
+    if (generation !== scanGeneration) return;
+    if (busy) setTimeout(readPhoto,100);
+    else readFrame(preview,false);
+  };
+  preview.onload = readPhoto;
   preview.onerror = () => { message.textContent = 'No se pudo abrir esta foto.'; };
   preview.src = currentPhoto;
   $('#camera-state').textContent = 'FOTO LISTA';
@@ -353,7 +396,9 @@ function openCard(card) {
     const select = content.querySelector('[name=language]');
     select.replaceChildren(new Option(languages[only], only));
   }
-  if (card.language) content.querySelector('[name=language]').value = card.language;
+  const detectedLanguage = only || card.scanLanguage || card.language;
+  if (detectedLanguage) content.querySelector('[name=language]').value = detectedLanguage;
+  else content.querySelector('[name=language]').value = 'und';
   cardDialog.showModal();
 }
 
@@ -392,10 +437,16 @@ function navigate(page) {
   $('#collection-page').classList.toggle('active', !scanning);
   document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('selected', button.dataset.page === page));
   if (!scanning) stopCamera();
-  else renderCollection();
+  else { paused=false; renderCollection(); startCamera(); }
 }
 
-$('#camera-button').addEventListener('click', startCamera);
+$('#camera-button').addEventListener('click', () => {
+  paused=!!stream || opening;
+  if (paused) stopCamera(); else startCamera();
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden) stopCamera(); else startCamera();});
+cardDialog.addEventListener('close',()=>startCamera());
+$('#info-dialog').addEventListener('close',()=>startCamera());
 $('#upload-button').addEventListener('click', () => $('#photo-input').click());
 $('#photo-input').addEventListener('change', event => { const file = event.target.files[0]; event.target.value = ''; scanFile(file); });
 $('#manual-search').addEventListener('submit', event => {
@@ -416,9 +467,11 @@ $('#custom-form').addEventListener('submit', event => {
 $('#collection-search').addEventListener('input', renderCollection);
 document.querySelectorAll('.nav-item').forEach(button => button.addEventListener('click', () => navigate(button.dataset.page)));
 document.querySelectorAll('[data-go-scan]').forEach(button => button.addEventListener('click', () => navigate('scan')));
-$('#settings-button').addEventListener('click', () => $('#info-dialog').showModal());
+$('#settings-button').addEventListener('click', () => {stopCamera(); $('#info-dialog').showModal();});
 window.addEventListener('hashchange', () => navigate(location.hash === '#coleccion' ? 'collection' : 'scan'));
 window.addEventListener('pagehide', stopCamera);
+window.addEventListener('pageshow',()=>startCamera());
+navigate(location.hash === '#coleccion' ? 'collection' : 'scan');
 
 try {
   catalog = await catalogRequest;
@@ -445,6 +498,7 @@ sourcePicker.addEventListener('change', async () => {
     message.textContent = 'No se pudo cargar ese catálogo. Sigue disponible el anterior.';
   } finally {
     sourcePicker.disabled = false;
+    startCamera();
   }
 });
 renderCollection();

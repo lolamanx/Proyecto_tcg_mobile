@@ -227,6 +227,7 @@ export function consensusCandidates(history, ranked) {
   const totals = new Map();
   for (const pass of history) for (const result of pass) {
     const current = totals.get(result.card.id) || { ...result, count: 0, scoreSum: 0 };
+    if (result.card.scanLanguage) current.card = result.card;
     current.count++;
     current.scoreSum += result.score;
     if ((result.visualScore ?? -1) > (current.visualScore ?? -1)) current.visualScore = result.visualScore;
