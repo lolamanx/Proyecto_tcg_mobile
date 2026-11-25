@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142d24">
+  <meta name="description" content="Organiza tu colección de cartas Pokémon y consulta sus referencias de mercado.">
+  <title>Cardfolio · Colección Pokémon TCG</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#inicio"><span class="brand-mark" aria-hidden="true">▱</span>Cardfolio<span>.</span></a>
+    <nav aria-label="Menú principal">
+      <a href="#inicio" data-page="inicio"><span aria-hidden="true">⌂</span>Inicio</a>
+      <a href="#coleccion" data-page="coleccion"><span aria-hidden="true">▤</span>Mi colección</a>
+      <a href="#mercado" data-page="mercado"><span aria-hidden="true">⌕</span>Consultar carta</a>
+    </nav>
+    <div class="side-note"><span aria-hidden="true">◇</span><div><strong>Pokémon TCG</strong><small>Tu álbum digital</small></div></div>
+  </aside>
+  <main id="main">
+    <header class="topbar"><span>ALBUM PERSONAL</span><span class="device"><i></i> Guardado en este dispositivo</span><button class="button ghost install-app" type="button">Instalar app</button></header>
+    <div id="view"></div>
+  </main>
+</div>
+<dialog id="install-dialog">
+  <h2>Instalar Cardfolio</h2>
+  <p><strong>Android</strong> · En Chrome, abre el menú ⋮ y elige «Instalar aplicación» o «Añadir a pantalla de inicio».</p>
+  <p><strong>iPhone</strong> · En Safari, toca Compartir y elige «Agregar a pantalla de inicio».</p>
+  <form method="dialog"><button class="button secondary">Cerrar</button></form>
+</dialog>
+<dialog id="camera-dialog">
+  <h2>Encuadra tu carta</h2>
+  <p class="camera-status" role="status"></p>
+  <div class="camera-view"><video playsinline muted></video><div class="camera-guide" aria-hidden="true"></div></div>
+  <div class="row"><button class="button primary shutter" type="button">Capturar</button><form method="dialog"><button class="button secondary">Cerrar</button></form></div>
+</dialog>
+<template id="finder">
+  <div class="finder">
+    <div class="finder-head"><h2>Identifica la carta</h2><p>Usa una foto o busca por nombre, edición y número.</p></div>
+    <div class="photo-options">
+      <button class="button primary guided-camera" type="button">Tomar foto</button><input hidden type="file" class="camera" accept="image/*" capture="environment">
+      <label class="button secondary">Subir foto<input type="file" class="upload" accept="image/*"></label>
+    </div>
+    <div class="scan-result" hidden><img alt="Tu foto de la carta"><p class="scan-status" role="status"></p></div>
+    <button class="button secondary foil-camera" type="button" hidden>Comprobar reflejo</button><p class="foil-status" role="status" hidden></p>
+    <form class="search-form">
+      <label>Nombre o número<input class="query" placeholder="Ej. Umbreon VMAX o 215/203" autocomplete="off"></label>
+      <label>Edición<select class="sets"><option value="">Todas las ediciones</option></select></label>
+      <button class="button primary">Buscar</button>
+    </form>
+    <p class="catalog-status" role="status" hidden></p>
+    <div class="results"></div>
+    <div class="selection"></div>
+  </div>
+</template>
+</body>
+</html>
