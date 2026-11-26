@@ -33,10 +33,10 @@
           <div class="camera-shade"></div>
           <div class="scan-instructions" id="camera-placeholder">
             <span class="camera-symbol">▧</span>
-            <strong>Coloca una carta dentro del marco</strong>
+            <strong>Muestra la carta completa</strong>
             <span>La lectura se procesa en tu dispositivo</span>
           </div>
-          <div class="scan-frame" aria-hidden="true"><span></span><span></span><span></span><span></span><b></b></div>
+          <svg id="card-outline" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><polygon/></svg><div class="scan-frame" aria-hidden="true"><span></span><span></span><span></span><span></span><b></b></div>
           <div class="camera-hud"><span id="camera-state">CÁMARA DESACTIVADA</span><span>·</span><span id="ocr-state">LISTA PARA ESCANEAR</span></div>
           <div class="detected-badge" id="detected-badge" hidden><span>✓</span><span><small>COINCIDENCIA</small><b id="detected-name">Carta detectada</b></span></div>
         </div>

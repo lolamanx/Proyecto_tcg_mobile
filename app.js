@@ -1,4 +1,5 @@
-import {printedLanguage,bestOfBurst} from './auto-scan.js';
+import {loadDetector, locate, rectify} from './detector.js';
+import {printedLanguage} from './auto-scan.js';
 import {captureExample, suggestions, remember, exclusive, stampHint} from './scan-help.js';
 import { loadCatalog, loadLiveCatalog } from './catalog-online.js';
 import { assessCardImage, consensusCandidates, rankCardCandidates, rankWithCardImage } from './recognition.mjs';
@@ -232,19 +233,12 @@ function makeOcrSheet(source, quality) {
   return canvas;
 }
 
-function cropLiveCard(video) {
-  const box = video.getBoundingClientRect();
-  const guide = stage.querySelector('.scan-frame').getBoundingClientRect();
-  const scale = Math.max(box.width / video.videoWidth, box.height / video.videoHeight);
-  const left = (guide.left - box.left + (video.videoWidth * scale - box.width) / 2) / scale;
-  const top = (guide.top - box.top + (video.videoHeight * scale - box.height) / 2) / scale;
-  const width = guide.width / scale;
-  const height = guide.height / scale;
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.min(1000, Math.round(width)));
-  canvas.height = Math.max(1, Math.round(canvas.width * height / width));
-  canvas.getContext('2d').drawImage(video, left, top, width, height, 0, 0, canvas.width, canvas.height);
-  return canvas;
+function outline(points) {
+  const svg=$('#card-outline');
+  if (!points) {svg.hidden=true; svg.style.display='none';return;}
+  svg.style.display='block';svg.hidden=false;
+  svg.setAttribute('viewBox','0 0 '+camera.videoWidth+' '+camera.videoHeight);
+  svg.querySelector('polygon').setAttribute('points',points.map(p=>[p.x*camera.videoWidth,p.y*camera.videoHeight].join(',')).join(' '));
 }
 
 async function readFrame(source, live = false, sampledQuality) {
@@ -341,9 +335,25 @@ async function startCamera() {
     $('#camera-placeholder').hidden = true;
     $('#camera-state').textContent = 'CÁMARA ACTIVA';
     $('#camera-button').innerHTML = '<span>■</span> Detener cámara';
-    message.textContent = 'Mantén la carta dentro del marco y el número inferior enfocado.';
+    message.textContent = 'Muestra la carta completa en cualquier parte de la cámara.';
     recognitionHistory.length = 0;
-    const sample = bestOfBurst(camera,cropLiveCard,assessCardImage,({canvas,quality})=>{
+    $('#camera-state').textContent='PREPARANDO DETECTOR';
+    const {cv}=await loadDetector();
+    if(generation!==scanGeneration)return;
+    let missing=0;
+    const sample=()=>{
+      if(camera.readyState<2 || !catalog.cards.length)return;
+      const points=locate(cv,camera);
+      outline(points);
+      if(!points){
+        $('#camera-state').textContent='BUSCANDO LOS CUATRO BORDES';
+        if(++missing>=3){heldCard='';latestEntry=null;recognitionHistory.length=0;}
+        return;
+      }
+      missing=0;
+      $('#camera-state').textContent='CONTORNO DETECTADO';
+      const canvas=rectify(cv,camera,points);
+      const quality=assessCardImage(canvas);
       if (quality.contrast<10 || quality.dark>.87 || quality.glare>.85) {
         if (++blankFrames >= 3) { heldCard=''; latestEntry=null; recognitionHistory.length=0; }
         $('#camera-state').textContent='BUSCANDO DETALLE · AJUSTA EL ÁNGULO';
@@ -351,8 +361,8 @@ async function startCamera() {
       }
       blankFrames=0;
       if (!busy && catalog.cards.length) readFrame(canvas,true,quality);
-    });
-    scanTimer = setInterval(()=>{if(stream && !busy) sample();},110);
+    };
+    scanTimer = setInterval(()=>{if(stream && !busy) sample();},220);
   } catch {
     if(generation !== scanGeneration) return;
     paused=true;
@@ -362,6 +372,7 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  outline(null);
   $('#next-copy').hidden=true;
   heldCard=''; latestEntry=null; blankFrames=0;
   scanGeneration++;

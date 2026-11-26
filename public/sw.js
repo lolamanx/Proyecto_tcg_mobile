@@ -1,5 +1,5 @@
-const CACHE = 'cardfolio-shell-v7';
-const SHELL = ['/', '/index.html', '/style.css', '/app.js','/scan-help.js','/auto-scan.js', '/catalog-online.js', '/recognition.mjs', '/catalog.json', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'cardfolio-shell-v8';
+const SHELL = ['/', '/index.html', '/style.css', '/app.js','/detector.js','/scan-help.js','/auto-scan.js', '/catalog-online.js', '/recognition.mjs', '/catalog.json', '/manifest.webmanifest', '/icon.svg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('cardfolio-shell-') && key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {
