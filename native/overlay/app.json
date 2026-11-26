@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Cardfolio Nativo",
+    "slug": "cardfolio-nativo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "cardfolionativo",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cl.cardfolio.nativo",
+      "infoPlist": {
+        "NSCameraUsageDescription": "PK Scan uses the camera to read the name and set number printed on your Pokemon cards. Images are processed on your device and are never uploaded.",
+        "NSPhotoLibraryUsageDescription": "PK Scan can read card photos from your library to identify them on-device."
+      }
+    },
+    "android": {
+      "package": "cl.cardfolio.nativo",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F14",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-image",
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "PK Scan uses the camera to read the name and set number printed on your Pokemon cards. Images are processed on your device and are never uploaded."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F14"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}

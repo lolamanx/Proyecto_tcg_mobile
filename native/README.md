@@ -1,0 +1,2 @@
+# Cardfolio Nativo
+Adaptación de https://github.com/JeremyMCastillo/pk-scan en d5a25ad09499a69db9edcc288e5273159ce3b10d (MIT). La compilación descarga esa revisión y superpone los archivos de overlay. Se instala como cl.cardfolio.nativo, con una colección SQLite independiente. Primera apertura: conceder permiso y descargar el índice de TCGdex. La captura automática usa primero la foto completa y reintenta con la guía si hay duda.
