@@ -52,7 +52,10 @@ export default function ScanScreen() {
   const focused = usePathname() === '/';
   const active = useRef(false);
   const visible = useRef(focused);
-  visible.current = focused;
+  useEffect(() => {
+    visible.current = focused;
+    return () => { visible.current = false; };
+  }, [focused]);
   const capture = useCallback(async () => {
     const camera = cameraRef.current;
     if (!camera || busy || active.current || !visible.current) return;
