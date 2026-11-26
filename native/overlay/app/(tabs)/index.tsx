@@ -7,10 +7,9 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -50,7 +49,7 @@ export default function ScanScreen() {
   const ocrAvailable = isOcrAvailable();
   const indexReady = status?.ready ?? false;
 
-  const focused = useIsFocused();
+  const focused = usePathname() === '/';
   const active = useRef(false);
   const visible = useRef(focused);
   visible.current = focused;
